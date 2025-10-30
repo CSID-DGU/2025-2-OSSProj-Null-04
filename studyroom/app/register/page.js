@@ -1,12 +1,15 @@
-// app/login/page.js
+// app/register/page.js
 'use client';
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-export default function LoginPage() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+export default function RegisterPage() {
+  const [formData, setFormData] = useState({
+    email: '',
+    password: '',
+    name: ''
+  });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -17,10 +20,10 @@ export default function LoginPage() {
     setLoading(true);
     
     try {
-      const res = await fetch('/api/auth/login', {
+      const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify(formData)
       });
       
       const data = await res.json();
@@ -30,11 +33,11 @@ export default function LoginPage() {
         return;
       }
       
-      // 로그인 성공 → 대시보드로 이동
-      router.push('/dashboard');
+      alert('회원가입 성공! 로그인 페이지로 이동합니다.');
+      router.push('/login');
       
     } catch (err) {
-      setError('로그인 중 오류가 발생했습니다');
+      setError('회원가입 중 오류가 발생했습니다');
     } finally {
       setLoading(false);
     }
@@ -43,16 +46,27 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100">
       <div className="bg-white p-8 rounded-lg shadow-md w-96">
-        <h1 className="text-2xl font-bold mb-6 text-center">로그인</h1>
+        <h1 className="text-2xl font-bold mb-6 text-center">회원가입</h1>
         
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">이름</label>
+            <input
+              type="text"
+              className="w-full px-3 py-2 border rounded-md"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              required
+            />
+          </div>
+          
           <div>
             <label className="block text-sm font-medium mb-1">이메일</label>
             <input
               type="email"
               className="w-full px-3 py-2 border rounded-md"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               required
             />
           </div>
@@ -62,9 +76,10 @@ export default function LoginPage() {
             <input
               type="password"
               className="w-full px-3 py-2 border rounded-md"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              value={formData.password}
+              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
               required
+              minLength={6}
             />
           </div>
           
@@ -77,14 +92,14 @@ export default function LoginPage() {
             disabled={loading}
             className="w-full bg-blue-500 text-white py-2 rounded-md hover:bg-blue-600 disabled:bg-gray-400"
           >
-            {loading ? '로그인 중...' : '로그인'}
+            {loading ? '처리 중...' : '회원가입'}
           </button>
         </form>
         
         <p className="mt-4 text-center text-sm">
-          계정이 없으신가요?{' '}
-          <a href="/register" className="text-blue-500 hover:underline">
-            회원가입
+          이미 계정이 있으신가요?{' '}
+          <a href="/login" className="text-blue-500 hover:underline">
+            로그인
           </a>
         </p>
       </div>
