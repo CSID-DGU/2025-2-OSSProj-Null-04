@@ -1,65 +1,58 @@
-// app/api/auth/login/route.js
-import { supabase } from '@/lib/supabase/server';
-import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
-import { cookies } from 'next/headers';
+import { createClient } from '@/lib/supabase/server';
 
 export async function POST(request) {
   try {
     const { email, password } = await request.json();
-    
-    // 사용자 찾기
-    const { data: user, error } = await supabase
-      .from('User')
-      .select('*')
-      .eq('UserInputID', email)
-      .single();
-    
-    if (error || !user) {
+
+    // 유효성 검사
+    if (!email || !password) {
       return Response.json(
-        { error: '이메일 또는 비밀번호가 틀렸습니다' },
-        { status: 401 }
+        { error: '이메일과 비밀번호를 입력해주세요' },
+        { status: 400 }
       );
     }
-    
-    // 비밀번호 확인
-    const isValid = await bcrypt.compare(password, user.password);
-    
-    if (!isValid) {
-      return Response.json(
-        { error: '이메일 또는 비밀번호가 틀렸습니다' },
-        { status: 401 }
-      );
-    }
-    
-    // JWT 토큰 생성
-    const token = jwt.sign(
-      { 
-        userId: user.UserID,
-        name: user.name,
-        email: user.UserInputID
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
-    
-    // 쿠키에 저장
-    cookies().set('auth-token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 7  // 7일
+
+    const supabase = createClient();
+
+    // Supabase Auth로 로그인
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      email,
+      password,
     });
-    
+
+    if (authError) {
+      return Response.json(
+        { error: '이메일 또는 비밀번호가 틀렸습니다' },
+        { status: 401 }
+      );
+    }
+
+    if (!authData.user) {
+      return Response.json(
+        { error: '로그인에 실패했습니다' },
+        { status: 401 }
+      );
+    }
+
+    // User 테이블에서 추가 정보 가져오기
+    const { data: userData } = await supabase
+      .from('User')
+      .select('name')
+      .eq('UserID', authData.user.id)
+      .single();
+
+    const userName = userData?.name || authData.user.user_metadata?.name || '사용자';
+
     return Response.json({
       success: true,
       user: {
-        id: user.UserID,
-        name: user.name,
-        email: user.UserInputID
-      }
+        id: authData.user.id,
+        email: authData.user.email,
+        name: userName,
+      },
+      message: '로그인되었습니다',
     });
-    
+
   } catch (error) {
     console.error('Login error:', error);
     return Response.json(
