@@ -3,6 +3,22 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+
+  /* 프로젝트 커스텀 색상 */
+  --primary: #2563eb;        /* 파란색 (메인 컬러) */
+  --primary-hover: #1d4ed8;  /* 파란색 호버 */
+  --primary-light: #eff6ff;  /* 연한 파란색 배경 */
+
+  --danger: #ef4444;         /* 빨간색 (로그아웃, 삭제 등) */
+  --danger-hover: #dc2626;   /* 빨간색 호버 */
+
+  --success: #10b981;        /* 초록색 (성공) */
+  --warning: #f59e0b;        /* 주황색 (경고) */
+
+  --gray-bg: #f9fafb;        /* 회색 배경 */
+  --gray-border: #e5e7eb;    /* 회색 테두리 */
+  --gray-text: #6b7280;      /* 회색 텍스트 */
+  --gray-text-dark: #374151; /* 진한 회색 텍스트 */
 }
 
 @theme inline {
@@ -10,12 +26,35 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  /* 커스텀 색상을 Tailwind 클래스로 사용 가능하게 */
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-light: var(--primary-light);
+
+  --color-danger: var(--danger);
+  --color-danger-hover: var(--danger-hover);
+
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+
+  --color-gray-bg: var(--gray-bg);
+  --color-gray-border: var(--gray-border);
+  --color-gray-text: var(--gray-text);
+  --color-gray-text-dark: var(--gray-text-dark);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
+
+    /* 다크모드 색상 조정 */
+    --primary-light: #1e3a8a;
+    --gray-bg: #1f2937;
+    --gray-border: #374151;
+    --gray-text: #9ca3af;
+    --gray-text-dark: #d1d5db;
   }
 }
 
