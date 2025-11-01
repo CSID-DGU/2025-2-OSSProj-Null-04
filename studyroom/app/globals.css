@@ -35,3 +35,13 @@ body {
   color: var(--color-foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* 사이드바가 있는 페이지의 메인 콘텐츠 margin 조정 */
+.sidebar-expanded-content {
+  margin-left: 16rem; /* ml-64 = 256px = 16rem */
+  transition: margin-left 300ms;
+}
+
+body.sidebar-collapsed .sidebar-expanded-content {
+  margin-left: 4rem; /* ml-16 = 64px = 4rem */
+}
