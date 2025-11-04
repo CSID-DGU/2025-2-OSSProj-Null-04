@@ -51,3 +51,83 @@ export async function isAuthenticated() {
   const user = await getCurrentUser();
   return user !== null;
 }
+/**
+ * 특정 강의실의 멤버인지 확인
+ * @param {string} roomId - 강의실 ID
+ * @param {string} userId - 사용자 ID
+ * @returns {Promise<Object|null>} 멤버십 정보 또는 null
+ */
+export async function checkRoomMembership(roomId, userId) {
+  try {
+    const supabase = createClient();
+
+    const { data, error } = await supabase
+      .from('RoomMember')
+      .select('*')
+      .eq('RoomID', roomId)
+      .eq('UserID', userId)
+      .single();
+
+    if (error || !data) {
+      return null;
+    }
+
+    return data;
+  } catch (err) {
+    console.error('checkRoomMembership error:', err);
+    return null;
+  }
+}
+
+/**
+ * 강의실 소유자인지 확인
+ * @param {string} roomId - 강의실 ID
+ * @param {string} userId - 사용자 ID
+ * @returns {Promise<boolean>}
+ */
+export async function isRoomOwner(roomId, userId) {
+  try {
+    const supabase = createClient();
+
+    const { data, error } = await supabase
+      .from('Room')
+      .select('AdminID')
+      .eq('RoomID', roomId)
+      .single();
+
+    if (error || !data) {
+      return false;
+    }
+
+    return data.AdminID === userId;
+  } catch (err) {
+    console.error('isRoomOwner error:', err);
+    return false;
+  }
+}
+
+/**
+ * 강의실 편집 권한 확인 (owner 또는 editor)
+ * @param {string} roomId - 강의실 ID
+ * @param {string} userId - 사용자 ID
+ * @returns {Promise<boolean>}
+ */
+export async function canEditRoom(roomId, userId) {
+  try {
+    // 소유자인 경우
+    if (await isRoomOwner(roomId, userId)) {
+      return true;
+    }
+
+    // 편집 권한이 있는 경우
+    const membership = await checkRoomMembership(roomId, userId);
+    if (membership && (membership.Role === 'owner' || membership.Role === 'editor')) {
+      return true;
+    }
+
+    return false;
+  } catch (err) {
+    console.error('canEditRoom error:', err);
+    return false;
+  }
+}
