@@ -89,10 +89,10 @@ export default function DashboardPage() {
       }
 
       setTotalStudyTime(data.totalStudyTime || 0);
-      
+
       if (data.activeTimer) {
         setIsRunning(true);
-        const startTime = new Date(data.activeTimer.저장시각아이디);
+        const startTime = new Date(data.activeTimer.saveTime);
         const elapsed = Math.floor((Date.now() - startTime.getTime()) / 1000);
         setCurrentTime(elapsed);
       }
@@ -165,91 +165,60 @@ export default function DashboardPage() {
     }
   };
 
-  // 타이머 시작
-  const handleStart = async () => {
-    try {
-      const res = await fetch('/api/main/studytime', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'start' }),
-      });
-
-      const data = await res.json();
-      
-      if (!res.ok) {
-        alert(data.error);
-        return;
-      }
-
-      setIsRunning(true);
-      setCurrentTime(0);
-    } catch (err) {
-      console.error('타이머 시작 오류:', err);
-      alert('타이머 시작에 실패했습니다');
-    }
+  // 타이머 시작/재개
+  const handleStart = () => {
+    setIsRunning(true);
   };
 
   // 타이머 일시정지
-  const handlePause = async () => {
+  const handlePause = () => {
+    setIsRunning(false);
+  };
+
+  // 타이머 리셋 (총 공부시간에 누적)
+  const handleReset = async () => {
+    if (currentTime === 0) {
+      alert('기록할 시간이 없습니다');
+      return;
+    }
+
     try {
       const studyTimeInMinutes = Math.floor(currentTime / 60);
-      
+
       const res = await fetch('/api/main/studytime', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: 'pause',
+          action: 'save',
           studyTime: studyTimeInMinutes,
         }),
       });
 
       const data = await res.json();
-      
+
       if (!res.ok) {
         alert(data.error);
         return;
       }
 
-      setIsRunning(false);
+      // 총 공부시간 업데이트하고 타이머 초기화
       setTotalStudyTime(prev => prev + studyTimeInMinutes);
-      setCurrentTime(0);
-    } catch (err) {
-      console.error('타이머 일시정지 오류:', err);
-      alert('타이머 일시정지에 실패했습니다');
-    }
-  };
-
-  // 타이머 리셋
-  const handleReset = async () => {
-    if (!confirm('타이머를 리셋하시겠습니까?')) return;
-
-    try {
-      const res = await fetch('/api/main/studytime', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'reset' }),
-      });
-
-      const data = await res.json();
-      
-      if (!res.ok) {
-        alert(data.error);
-        return;
-      }
-
       setIsRunning(false);
       setCurrentTime(0);
+
+      alert(`${studyTimeInMinutes}분이 저장되었습니다`);
     } catch (err) {
       console.error('타이머 리셋 오류:', err);
       alert('타이머 리셋에 실패했습니다');
     }
   };
 
-  // 시간 포맷팅 (초 -> H시간 M분)
+  // 시간 포맷팅 (초 -> H시간 M분 S초)
   const formatTime = (seconds) => {
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
-    return `${hours}시간 ${minutes}분`;
+    const secs = seconds % 60;
+    return `${hours}시간 ${minutes}분 ${secs}초`;
   };
 
   // 분을 시간:분 포맷으로 변환
@@ -369,27 +338,32 @@ export default function DashboardPage() {
                   {formatTime(currentTime)}
                 </div>
                 
-                <div className="flex justify-center space-x-3">
-                  <button
-                    onClick={handleStart}
-                    disabled={isRunning}
-                    className="px-6 py-2 bg-blue-600 text-white text-base font-semibold rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
-                  >
-                    시작
-                  </button>
-                  
-                  <button
-                    onClick={handlePause}
-                    disabled={!isRunning}
-                    className="px-6 py-2 bg-yellow-600 text-white text-base font-semibold rounded-lg hover:bg-yellow-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
-                  >
-                    일시정지
-                  </button>
-                  
+                <div className="flex justify-center gap-3">
+                  {/* 시작 버튼 (실행 중이 아닐 때만 표시) */}
+                  {!isRunning && (
+                    <button
+                      onClick={handleStart}
+                      className="px-6 py-2 bg-blue-600 text-white text-base font-semibold rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      시작
+                    </button>
+                  )}
+
+                  {/* 일시정지 버튼 (실행 중일 때만 표시) */}
+                  {isRunning && (
+                    <button
+                      onClick={handlePause}
+                      className="px-6 py-2 bg-yellow-600 text-white text-base font-semibold rounded-lg hover:bg-yellow-700 transition-colors"
+                    >
+                      일시정지
+                    </button>
+                  )}
+
+                  {/* 리셋 버튼 (시간이 있을 때만 활성화) */}
                   <button
                     onClick={handleReset}
-                    disabled={!isRunning && currentTime === 0}
-                    className="px-6 py-2 bg-gray-600 text-white text-base font-semibold rounded-lg hover:bg-gray-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                    disabled={currentTime === 0}
+                    className="px-6 py-2 bg-red-600 text-white text-base font-semibold rounded-lg hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
                   >
                     리셋
                   </button>
