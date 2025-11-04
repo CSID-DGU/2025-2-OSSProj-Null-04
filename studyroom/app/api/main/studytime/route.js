@@ -27,10 +27,10 @@ export async function GET(request) {
     const { data: studyTimes, error } = await supabase
       .from('StudyTime')
       .select('*')
-      .eq('학습자아이디', user.id)
-      .gte('저장시각아이디', today.toISOString())
-      .lt('저장시각아이디', tomorrow.toISOString())
-      .order('저장시각아이디', { ascending: true });
+      .eq('UserID', user.id)
+      .gte('saveTime', today.toISOString())
+      .lt('saveTime', tomorrow.toISOString())
+      .order('saveTime', { ascending: true });
 
     if (error) {
       console.error('StudyTime query error:', error);
@@ -42,11 +42,11 @@ export async function GET(request) {
 
     // 5. 총 공부시간 계산 (분 단위)
     const totalStudyTime = studyTimes.reduce((total, record) => {
-      return total + (record.시간 || 0);
+      return total + (record.studyTime || 0);
     }, 0);
 
-    // 6. 현재 활성화된 타이머 확인
-    const activeTimer = studyTimes.find(record => record.SaveTimeID === null);
+    // 6. 현재 활성화된 타이머 확인 (studyTime이 아직 0인 레코드)
+    const activeTimer = studyTimes.find(record => record.isActive === true);
 
     return Response.json({
       totalStudyTime, // 오늘 총 공부시간 (분)
@@ -84,13 +84,29 @@ export async function POST(request) {
     const supabase = createClient();
 
     if (action === 'start') {
+      // 기존에 활성화된 타이머가 있는지 확인
+      const { data: existingTimer } = await supabase
+        .from('StudyTime')
+        .select('*')
+        .eq('UserID', user.id)
+        .eq('isActive', true)
+        .single();
+
+      if (existingTimer) {
+        return Response.json(
+          { error: '이미 실행 중인 타이머가 있습니다' },
+          { status: 400 }
+        );
+      }
+
       // 타이머 시작 - 새로운 기록 생성
       const { data, error } = await supabase
         .from('StudyTime')
         .insert([{
-          학습자아이디: user.id,
-          시간: 0,
-          SaveTimeID: null, // 아직 저장되지 않음 (진행 중)
+          UserID: user.id,
+          studyTime: 0, // 초기값 0분
+          saveTime: new Date().toISOString(),
+          isActive: true, // 진행 중 표시
         }])
         .select()
         .single();
@@ -110,7 +126,7 @@ export async function POST(request) {
 
     } else if (action === 'pause') {
       // 타이머 일시정지 - studyTime 업데이트
-      if (!studyTime) {
+      if (studyTime === undefined || studyTime === null) {
         return Response.json(
           { error: '공부시간 정보가 필요합니다' },
           { status: 400 }
@@ -118,31 +134,30 @@ export async function POST(request) {
       }
 
       // 현재 활성 타이머 찾기
-      const { data: activeTimers, error: findError } = await supabase
+      const { data: activeTimer, error: findError } = await supabase
         .from('StudyTime')
         .select('*')
-        .eq('학습자아이디', user.id)
-        .is('SaveTimeID', null)
-        .order('저장시각아이디', { ascending: false })
-        .limit(1);
+        .eq('UserID', user.id)
+        .eq('isActive', true)
+        .order('saveTime', { ascending: false })
+        .limit(1)
+        .single();
 
-      if (findError || !activeTimers || activeTimers.length === 0) {
+      if (findError || !activeTimer) {
         return Response.json(
           { error: '실행 중인 타이머가 없습니다' },
           { status: 404 }
         );
       }
 
-      const activeTimer = activeTimers[0];
-
       // 공부 시간 업데이트
       const { data, error } = await supabase
         .from('StudyTime')
         .update({
-          시간: studyTime, // 분 단위
-          SaveTimeID: new Date().toISOString(),
+          studyTime: studyTime, // 분 단위
+          isActive: false, // 비활성화
         })
-        .eq('저장시각아이디', activeTimer.저장시각아이디)
+        .eq('SaveTimeID', activeTimer.SaveTimeID)
         .select()
         .single();
 
@@ -159,13 +174,83 @@ export async function POST(request) {
         timer: data,
       }, { status: 200 });
 
+    } else if (action === 'save') {
+      // 타이머 저장 - 총 공부시간에 누적
+      if (studyTime === undefined || studyTime === null) {
+        return Response.json(
+          { error: '공부시간 정보가 필요합니다' },
+          { status: 400 }
+        );
+      }
+
+      // 현재 활성 타이머 찾기
+      const { data: activeTimer, error: findError } = await supabase
+        .from('StudyTime')
+        .select('*')
+        .eq('UserID', user.id)
+        .eq('isActive', true)
+        .order('saveTime', { ascending: false })
+        .limit(1)
+        .single();
+
+      // 활성 타이머가 없으면 새로 생성
+      if (findError || !activeTimer) {
+        const { data, error } = await supabase
+          .from('StudyTime')
+          .insert([{
+            UserID: user.id,
+            studyTime: studyTime, // 분 단위
+            saveTime: new Date().toISOString(),
+            isActive: false, // 완료 상태
+          }])
+          .select()
+          .single();
+
+        if (error) {
+          console.error('Save timer error (insert):', error);
+          return Response.json(
+            { error: error.message },
+            { status: 400 }
+          );
+        }
+
+        return Response.json({
+          message: '타이머가 저장되었습니다',
+          timer: data,
+        }, { status: 200 });
+      }
+
+      // 활성 타이머가 있으면 업데이트
+      const { data, error } = await supabase
+        .from('StudyTime')
+        .update({
+          studyTime: studyTime, // 분 단위
+          isActive: false, // 완료 상태
+        })
+        .eq('SaveTimeID', activeTimer.SaveTimeID)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Save timer error (update):', error);
+        return Response.json(
+          { error: error.message },
+          { status: 400 }
+        );
+      }
+
+      return Response.json({
+        message: '타이머가 저장되었습니다',
+        timer: data,
+      }, { status: 200 });
+
     } else if (action === 'reset') {
       // 타이머 리셋 - 활성 타이머 삭제
       const { error } = await supabase
         .from('StudyTime')
         .delete()
-        .eq('학습자아이디', user.id)
-        .is('SaveTimeID', null);
+        .eq('UserID', user.id)
+        .eq('isActive', true);
 
       if (error) {
         console.error('Reset timer error:', error);
