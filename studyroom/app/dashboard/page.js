@@ -106,16 +106,16 @@ export default function DashboardPage() {
   const loadSchedules = async () => {
     try {
       setLoading(true);
-      
-      const roomsRes = await fetch('/api/room/join');
-      
+
+      const roomsRes = await fetch('/api/room');
+
       if (roomsRes.status === 401) {
         router.push('/login');
         return;
       }
 
       const roomsData = await roomsRes.json();
-      
+
       if (!roomsRes.ok) {
         setError(roomsData.error);
         setLoading(false);
@@ -123,10 +123,13 @@ export default function DashboardPage() {
       }
 
       const allSchedules = [];
-      
-      for (const room of roomsData.rooms || []) {
+
+      // owner와 member 배열을 합쳐서 모든 방 목록 가져오기
+      const allRooms = [...(roomsData.owner || []), ...(roomsData.member || [])];
+
+      for (const room of allRooms) {
         const scheduleRes = await fetch(`/api/room/${room.RoomID}/schedule`);
-        
+
         if (scheduleRes.ok) {
           const scheduleData = await scheduleRes.json();
           const schedulesWithRoom = (scheduleData.schedules || []).map(schedule => ({
