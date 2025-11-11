@@ -15,7 +15,7 @@ const supabaseService =
       })
     : null;
 
-export async function POST(request, { params }) {
+export async function POST(request, context) {
   try {
     const user = await getCurrentUser();
     if (!user) {
@@ -25,6 +25,7 @@ export async function POST(request, { params }) {
       );
     }
 
+    const { params } = await context;
     const { roomId } = params ?? {};
     if (!roomId) {
       return NextResponse.json(
@@ -53,7 +54,14 @@ export async function POST(request, { params }) {
 
     const arrayBuffer = await file.arrayBuffer();
     const fileBuffer = Buffer.from(arrayBuffer);
-    const filePath = `rooms/${roomId}/${Date.now()}-${file.name}`;
+    const original = file.name || 'upload.bin';
+    const safeName = original
+      .normalize('NFC')
+      .replace(/[^\w.\-]+/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^_+|_+$/g, '');
+    const finalName = safeName || 'upload.bin';
+    const filePath = `rooms/${roomId}/${Date.now()}-${finalName}`;
 
     const { data: uploadData, error: uploadError } = await supabaseService.storage
       .from(STORAGE_BUCKET)
@@ -71,7 +79,7 @@ export async function POST(request, { params }) {
       );
     }
 
-    const supabase = createClient();
+    const supabase = await createClient();
     const fileUrl = uploadData?.path ?? filePath;
 
     const { data: metadata, error: metadataError } = await supabase
@@ -112,6 +120,53 @@ export async function POST(request, { params }) {
     console.error('File upload error:', error);
     return NextResponse.json(
       { error: '파일 업로드 중 오류가 발생했습니다' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function GET(request, context) {
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json(
+        { error: '로그인이 필요합니다' },
+        { status: 401 }
+      );
+    }
+
+    const { params } = await context;
+    const { roomId } = params ?? {};
+    if (!roomId) {
+      return NextResponse.json(
+        { error: '유효하지 않은 요청입니다' },
+        { status: 400 }
+      );
+    }
+
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from('File')
+      .select('FileID, FileName, FileUrl, UploadedAt, UserID')
+      .eq('RoomID', roomId)
+      .order('UploadedAt', { ascending: false });
+
+    if (error) {
+      console.error('File list fetch error:', error);
+      return NextResponse.json(
+        { error: '파일 목록을 불러오지 못했습니다' },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json(
+      { files: data ?? [] },
+      { status: 200 }
+    );
+  } catch (error) {
+    console.error('File list error:', error);
+    return NextResponse.json(
+      { error: '파일 목록 조회 중 오류가 발생했습니다' },
       { status: 500 }
     );
   }

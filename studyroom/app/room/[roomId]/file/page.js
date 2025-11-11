@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 
 export default function FilePage() {
@@ -8,6 +8,38 @@ export default function FilePage() {
   const roomId = params?.roomId;
   const [selectedFile, setSelectedFile] = useState(null);
   const [status, setStatus] = useState({ type: 'idle', message: '' });
+  const [files, setFiles] = useState([]);
+  const [filesLoading, setFilesLoading] = useState(true);
+  const [filesError, setFilesError] = useState('');
+
+  const fetchFiles = useCallback(async () => {
+    if (!roomId) return;
+
+    setFilesLoading(true);
+    setFilesError('');
+
+    try {
+      const res = await fetch(`/api/room/${roomId}/file`, {
+        method: 'GET',
+        cache: 'no-store',
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || '파일 목록을 불러오지 못했습니다.');
+      }
+
+      setFiles(Array.isArray(data.files) ? data.files : []);
+    } catch (error) {
+      setFilesError(error.message || '파일 목록을 불러오는 중 오류가 발생했습니다.');
+    } finally {
+      setFilesLoading(false);
+    }
+  }, [roomId]);
+
+  useEffect(() => {
+    fetchFiles();
+  }, [fetchFiles]);
 
   const handleUpload = async (event) => {
     event.preventDefault();
@@ -36,6 +68,7 @@ export default function FilePage() {
 
       setSelectedFile(null);
       setStatus({ type: 'success', message: '파일 업로드가 완료되었습니다.' });
+      fetchFiles();
     } catch (error) {
       setStatus({
         type: 'error',
@@ -87,6 +120,45 @@ export default function FilePage() {
           {status.type === 'loading' ? '업로드 중...' : '업로드'}
         </button>
       </form>
+
+      <div className="mt-10">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
+          업로드된 파일
+        </h3>
+
+        {filesLoading && (
+          <p className="text-sm text-gray-600 dark:text-gray-300">불러오는 중...</p>
+        )}
+
+        {filesError && (
+          <p className="text-sm text-red-600 dark:text-red-400">{filesError}</p>
+        )}
+
+        {!filesLoading && !filesError && files.length === 0 && (
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            아직 업로드된 파일이 없습니다.
+          </p>
+        )}
+
+        {!filesLoading && files.length > 0 && (
+          <ul className="divide-y divide-gray-200 dark:divide-gray-700 border border-gray-200 dark:border-gray-700 rounded-lg">
+            {files.map((file) => (
+              <li key={file.FileID} className="flex items-center justify-between px-4 py-3">
+                <div>
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">
+                    {file.FileName}
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    {file.UploadedAt
+                      ? new Date(file.UploadedAt).toLocaleString()
+                      : '업로드 시각 미상'}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }
