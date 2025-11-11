@@ -169,8 +169,32 @@ export default function DashboardPage() {
   };
 
   // 타이머 시작/재개
-  const handleStart = () => {
-    setIsRunning(true);
+  const handleStart = async () => {
+    // 타이머가 0이면 새로 시작 (DB에 기록)
+    if (currentTime === 0) {
+      try {
+        const res = await fetch('/api/main/studytime', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'start' }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          alert(data.error);
+          return;
+        }
+
+        setIsRunning(true);
+      } catch (err) {
+        console.error('타이머 시작 오류:', err);
+        alert('타이머 시작에 실패했습니다');
+      }
+    } else {
+      // 일시정지 상태에서 재개 (프론트엔드만)
+      setIsRunning(true);
+    }
   };
 
   // 타이머 일시정지
