@@ -84,19 +84,21 @@ export async function POST(request) {
     const supabase = createClient();
 
     if (action === 'start') {
-      // 기존에 활성화된 타이머가 있는지 확인
-      const { data: existingTimer } = await supabase
+      // 기존에 활성화된 타이머 확인 및 정리
+      const { data: existingTimers } = await supabase
         .from('StudyTime')
         .select('*')
         .eq('UserID', user.id)
-        .eq('isActive', true)
-        .single();
+        .eq('isActive', true);
 
-      if (existingTimer) {
-        return Response.json(
-          { error: '이미 실행 중인 타이머가 있습니다' },
-          { status: 400 }
-        );
+      // 기존 활성 타이머가 있으면 모두 비활성화 (정리)
+      if (existingTimers && existingTimers.length > 0) {
+        console.log('기존 활성 타이머 정리:', existingTimers.length, '개');
+        await supabase
+          .from('StudyTime')
+          .update({ isActive: false })
+          .eq('UserID', user.id)
+          .eq('isActive', true);
       }
 
       // 타이머 시작 - 새로운 기록 생성
@@ -184,17 +186,54 @@ export async function POST(request) {
       }
 
       // 현재 활성 타이머 찾기
-      const { data: activeTimer, error: findError } = await supabase
+      const { data: activeTimers, error: findError } = await supabase
         .from('StudyTime')
         .select('*')
         .eq('UserID', user.id)
         .eq('isActive', true)
-        .order('saveTime', { ascending: false })
-        .limit(1)
-        .single();
+        .order('saveTime', { ascending: false });
 
-      // 활성 타이머가 없으면 새로 생성
-      if (findError || !activeTimer) {
+      if (findError) {
+        console.error('Find active timer error:', findError);
+      }
+
+      let savedTimer = null;
+
+      // 활성 타이머가 있으면 첫 번째 것을 업데이트
+      if (activeTimers && activeTimers.length > 0) {
+        const activeTimer = activeTimers[0];
+
+        const { data, error } = await supabase
+          .from('StudyTime')
+          .update({
+            studyTime: studyTime, // 분 단위
+            isActive: false, // 완료 상태
+          })
+          .eq('SaveTimeID', activeTimer.SaveTimeID)
+          .select()
+          .single();
+
+        if (error) {
+          console.error('Save timer error (update):', error);
+          return Response.json(
+            { error: error.message },
+            { status: 400 }
+          );
+        }
+
+        savedTimer = data;
+
+        // 나머지 활성 타이머들도 모두 비활성화
+        if (activeTimers.length > 1) {
+          await supabase
+            .from('StudyTime')
+            .update({ isActive: false })
+            .eq('UserID', user.id)
+            .eq('isActive', true)
+            .neq('SaveTimeID', activeTimer.SaveTimeID);
+        }
+      } else {
+        // 활성 타이머가 없으면 새로 생성
         const { data, error } = await supabase
           .from('StudyTime')
           .insert([{
@@ -214,34 +253,12 @@ export async function POST(request) {
           );
         }
 
-        return Response.json({
-          message: '타이머가 저장되었습니다',
-          timer: data,
-        }, { status: 200 });
-      }
-
-      // 활성 타이머가 있으면 업데이트
-      const { data, error } = await supabase
-        .from('StudyTime')
-        .update({
-          studyTime: studyTime, // 분 단위
-          isActive: false, // 완료 상태
-        })
-        .eq('SaveTimeID', activeTimer.SaveTimeID)
-        .select()
-        .single();
-
-      if (error) {
-        console.error('Save timer error (update):', error);
-        return Response.json(
-          { error: error.message },
-          { status: 400 }
-        );
+        savedTimer = data;
       }
 
       return Response.json({
         message: '타이머가 저장되었습니다',
-        timer: data,
+        timer: savedTimer,
       }, { status: 200 });
 
     } else if (action === 'reset') {
