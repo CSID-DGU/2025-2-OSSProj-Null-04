@@ -145,11 +145,11 @@ export default function DashboardPage() {
 
       const schedulesWithDday = allSchedules
         .map(schedule => {
-          const eventDate = new Date(schedule.일정날짜);
+          const eventDate = new Date(schedule.EventDate);
           eventDate.setHours(0, 0, 0, 0);
           const diffTime = eventDate.getTime() - today.getTime();
           const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-          
+
           return {
             ...schedule,
             dday: diffDays,
@@ -319,13 +319,13 @@ export default function DashboardPage() {
                   >
                     <div className="flex-1">
                       <h3 className="font-semibold text-gray-900 dark:text-white text-lg">
-                        {schedule.일정명칭}
+                        {schedule.EventTitle}
                       </h3>
                       <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                         {schedule.roomName}
                       </p>
                       <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">
-                        {new Date(schedule.일정날짜).toLocaleDateString('ko-KR', {
+                        {new Date(schedule.EventDate).toLocaleDateString('ko-KR', {
                           year: 'numeric',
                           month: 'long',
                           day: 'numeric',
