@@ -24,7 +24,7 @@ export async function GET(request, { params }) {
     const { data: membership, error: memberError } = await supabase
       .from('RoomMember')
       .select('*')
-      .eq('방식별코드', roomId)
+      .eq('RoomID', roomId)
       .eq('UserID', user.id)
       .single();
 
@@ -39,8 +39,8 @@ export async function GET(request, { params }) {
     const { data: schedules, error } = await supabase
       .from('Schedule')
       .select('*')
-      .eq('방식별코드', roomId)
-      .order('일정날짜', { ascending: true });
+      .eq('RoomID', roomId)
+      .order('EventDate', { ascending: true });
 
     if (error) {
       console.error('Schedule query error:', error);
@@ -94,8 +94,8 @@ export async function POST(request, { params }) {
     // 5. 사용자가 해당 강의실의 멤버인지 확인 (권한 체크)
     const { data: membership, error: memberError } = await supabase
       .from('RoomMember')
-      .select('권한')
-      .eq('방식별코드', roomId)
+      .select('Role')
+      .eq('RoomID', roomId)
       .eq('UserID', user.id)
       .single();
 
@@ -110,9 +110,9 @@ export async function POST(request, { params }) {
     const { data: schedule, error } = await supabase
       .from('Schedule')
       .insert([{
-        일정명칭: eventTitle,
-        일정날짜: eventDate,
-        방식별코드: roomId,
+        EventTitle: eventTitle,
+        EventDate: eventDate,
+        RoomID: roomId,
       }])
       .select()
       .single();
@@ -171,8 +171,8 @@ export async function DELETE(request, { params }) {
     // 5. 사용자가 해당 강의실의 멤버인지 확인
     const { data: membership, error: memberError } = await supabase
       .from('RoomMember')
-      .select('권한')
-      .eq('방식별코드', roomId)
+      .select('Role')
+      .eq('RoomID', roomId)
       .eq('UserID', user.id)
       .single();
 
@@ -188,7 +188,7 @@ export async function DELETE(request, { params }) {
       .from('Schedule')
       .delete()
       .eq('EventID', eventId)
-      .eq('방식별코드', roomId);
+      .eq('RoomID', roomId);
 
     if (error) {
       console.error('Schedule delete error:', error);
