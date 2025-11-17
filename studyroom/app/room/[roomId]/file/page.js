@@ -11,12 +11,14 @@ export default function FilePage() {
   const [files, setFiles] = useState([]);
   const [filesLoading, setFilesLoading] = useState(true);
   const [filesError, setFilesError] = useState('');
+  const [deleteError, setDeleteError] = useState('');
 
   const fetchFiles = useCallback(async () => {
     if (!roomId) return;
 
     setFilesLoading(true);
     setFilesError('');
+    setDeleteError('');
 
     try {
       const res = await fetch(`/api/room/${roomId}/file`, {
@@ -140,11 +142,15 @@ export default function FilePage() {
           </p>
         )}
 
+        {deleteError && (
+          <p className="text-sm text-red-600 dark:text-red-400">{deleteError}</p>
+        )}
+
         {!filesLoading && files.length > 0 && (
           <ul className="divide-y divide-gray-200 dark:divide-gray-700 border border-gray-200 dark:border-gray-700 rounded-lg">
             {files.map((file) => (
               <li key={file.FileID} className="flex items-center justify-between px-4 py-3">
-                <div>
+                <div className="flex flex-col flex-1 pr-4">
                   <p className="text-sm font-medium text-gray-900 dark:text-white">
                     {file.FileName}
                   </p>
@@ -153,6 +159,38 @@ export default function FilePage() {
                       ? new Date(file.UploadedAt).toLocaleString()
                       : '업로드 시각 미상'}
                   </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <a
+                    href={`/api/room/${roomId}/file/${file.FileID}/download`}
+                    className="text-sm font-semibold text-primary-600 hover:underline"
+                  >
+                    다운로드
+                  </a>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setDeleteError('');
+                      try {
+                        const res = await fetch(
+                          `/api/room/${roomId}/file/${file.FileID}`,
+                          { method: 'DELETE' }
+                        );
+                        const data = await res.json();
+
+                        if (!res.ok) {
+                          throw new Error(data.error || '삭제에 실패했습니다.');
+                        }
+
+                        fetchFiles();
+                      } catch (error) {
+                        setDeleteError(error.message || '파일 삭제 중 오류가 발생했습니다.');
+                      }
+                    }}
+                    className="text-sm text-red-600 hover:underline cursor-pointer bg-transparent p-0"
+                  >
+                    삭제
+                  </button>
                 </div>
               </li>
             ))}
