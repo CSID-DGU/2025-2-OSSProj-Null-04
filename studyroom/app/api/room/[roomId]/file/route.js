@@ -1,19 +1,11 @@
 import { NextResponse } from 'next/server';
-import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { getCurrentUser } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
+import { getSupabaseServiceClient } from '@/lib/supabase/service';
+import { vectorizeFileChunks } from '@/lib/vectorize/fileChunks';
 
 const STORAGE_BUCKET =
   process.env.SUPABASE_ROOM_FILES_BUCKET || 'room-files';
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-const supabaseService =
-  SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
-    ? createServiceClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-        auth: { persistSession: false },
-      })
-    : null;
 
 export async function POST(request, context) {
   try {
@@ -34,6 +26,7 @@ export async function POST(request, context) {
       );
     }
 
+    const supabaseService = getSupabaseServiceClient();
     if (!supabaseService) {
       console.error('Supabase service client is not configured.');
       return NextResponse.json(
@@ -101,6 +94,24 @@ export async function POST(request, context) {
 
       return NextResponse.json(
         { error: '파일 메타데이터 저장에 실패했습니다' },
+        { status: 500 }
+      );
+    }
+
+    try {
+      await vectorizeFileChunks({
+        fileId: metadata?.FileID,
+        roomId,
+        fileName: file.name,
+        filePath: fileUrl,
+        fileBuffer,
+      });
+    } catch (vectorError) {
+      console.error('File chunk embedding error:', vectorError);
+      await supabaseService.storage.from(STORAGE_BUCKET).remove([fileUrl]);
+      await supabase.from('File').delete().eq('FileID', metadata?.FileID);
+      return NextResponse.json(
+        { error: '파일 임베딩 생성에 실패했습니다' },
         { status: 500 }
       );
     }
