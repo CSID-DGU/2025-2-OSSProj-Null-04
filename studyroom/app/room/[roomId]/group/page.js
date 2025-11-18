@@ -68,7 +68,7 @@ export default function GroupPage() {
   const loadQuestions = async (quizId) => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/quiz/${quizId}/questions`);
+      const res = await fetch(`/api/quiz/${roomId}/${quizId}`);
       const data = await res.json();
 
       if (res.ok) {
