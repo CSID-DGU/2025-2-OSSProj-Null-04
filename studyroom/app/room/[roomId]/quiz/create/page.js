@@ -36,6 +36,10 @@ export default function CreateQuizPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
+  // 진행바 상태
+  const [progress, setProgress] = useState(0);
+  const [progressMessage, setProgressMessage] = useState('');
+
   useEffect(() => {
     fetchFiles();
   }, [roomId]);
@@ -75,6 +79,25 @@ export default function CreateQuizPage() {
     try {
       setGenerating(true);
       setError('');
+      setProgress(0);
+      setProgressMessage('파일 분석 중...');
+
+      // 진행바 시뮬레이션 시작
+      const progressInterval = setInterval(() => {
+        setProgress(prev => {
+          if (prev < 20) {
+            setProgressMessage('파일 분석 중...');
+            return prev + 4; // 0-20%: 5초
+          } else if (prev < 80) {
+            setProgressMessage('문제 생성 중...');
+            return prev + 6; // 20-80%: 10초
+          } else if (prev < 90) {
+            setProgressMessage('거의 완료...');
+            return prev + 2; // 80-90%: 5초
+          }
+          return prev;
+        });
+      }, 1000);
 
       // AI 퀴즈 생성
       const res = await fetch('/api/quiz/generate', {
@@ -90,18 +113,26 @@ export default function CreateQuizPage() {
 
       const data = await res.json();
 
+      clearInterval(progressInterval);
+
       if (!res.ok) {
         throw new Error(data.error || 'AI 퀴즈 생성에 실패했습니다');
       }
+
+      // 100% 표시
+      setProgress(100);
+      setProgressMessage('생성 완료!');
 
       // 기존 수동 문제 + AI 생성 문제 합치기
       const allQuestions = [...questions, ...data.questions];
 
       // 퀴즈 저장
-      await saveQuiz(allQuestions);
+      await saveQuiz(allQuestions, progressInterval);
 
     } catch (err) {
       setError(err.message);
+      setProgress(0);
+      setProgressMessage('');
     } finally {
       setGenerating(false);
     }
@@ -149,6 +180,25 @@ export default function CreateQuizPage() {
     try {
       setGenerating(true);
       setError('');
+      setProgress(0);
+      setProgressMessage('파일 분석 중...');
+
+      // 진행바 시뮬레이션 시작
+      const progressInterval = setInterval(() => {
+        setProgress(prev => {
+          if (prev < 20) {
+            setProgressMessage('파일 분석 중...');
+            return prev + 4;
+          } else if (prev < 80) {
+            setProgressMessage('문제 생성 중...');
+            return prev + 6;
+          } else if (prev < 90) {
+            setProgressMessage('거의 완료...');
+            return prev + 2;
+          }
+          return prev;
+        });
+      }, 1000);
 
       const res = await fetch('/api/quiz/generate', {
         method: 'POST',
@@ -163,14 +213,28 @@ export default function CreateQuizPage() {
 
       const data = await res.json();
 
+      clearInterval(progressInterval);
+
       if (!res.ok) {
         throw new Error(data.error || 'AI 퀴즈 생성에 실패했습니다');
       }
 
+      // 100% 표시
+      setProgress(100);
+      setProgressMessage('생성 완료!');
+
       setQuestions([...questions, ...data.questions]);
+
+      // 0.3초 후 진행바 숨기기
+      setTimeout(() => {
+        setProgress(0);
+        setProgressMessage('');
+      }, 300);
 
     } catch (err) {
       setError(err.message);
+      setProgress(0);
+      setProgressMessage('');
     } finally {
       setGenerating(false);
     }
@@ -211,11 +275,15 @@ export default function CreateQuizPage() {
         throw new Error(data.error || '퀴즈 저장에 실패했습니다');
       }
 
-      alert('퀴즈가 생성되었습니다!');
-      router.push(`/room/${roomId}/quiz`);
+      // 0.3초 후 퀴즈 목록으로 이동
+      setTimeout(() => {
+        router.push(`/room/${roomId}/quiz`);
+      }, 300);
 
     } catch (err) {
       setError(err.message);
+      setProgress(0);
+      setProgressMessage('');
     } finally {
       setSaving(false);
     }
@@ -233,6 +301,31 @@ export default function CreateQuizPage() {
         {error && (
           <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg mb-6">
             {error}
+          </div>
+        )}
+
+        {/* 진행바 */}
+        {generating && progress > 0 && (
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-6">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 text-center">
+              AI 퀴즈 생성 중...
+            </h2>
+            <div className="space-y-3">
+              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-4 overflow-hidden">
+                <div
+                  className="bg-primary-600 h-4 rounded-full transition-all duration-200 ease-out flex items-center justify-end pr-2"
+                  style={{ width: `${progress}%` }}
+                >
+                  <span className="text-xs font-semibold text-white">{progress}%</span>
+                </div>
+              </div>
+              <p className="text-center text-gray-700 dark:text-gray-300 font-medium">
+                {progressMessage}
+              </p>
+              <p className="text-center text-sm text-gray-500 dark:text-gray-400">
+                생성 중에는 페이지를 닫지 마세요
+              </p>
+            </div>
           </div>
         )}
 
@@ -366,6 +459,31 @@ export default function CreateQuizPage() {
       {error && (
         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg mb-6">
           {error}
+        </div>
+      )}
+
+      {/* 진행바 */}
+      {generating && progress > 0 && (
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-6">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 text-center">
+            AI 퀴즈 생성 중...
+          </h2>
+          <div className="space-y-3">
+            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-4 overflow-hidden">
+              <div
+                className="bg-primary-600 h-4 rounded-full transition-all duration-200 ease-out flex items-center justify-end pr-2"
+                style={{ width: `${progress}%` }}
+              >
+                <span className="text-xs font-semibold text-white">{progress}%</span>
+              </div>
+            </div>
+            <p className="text-center text-gray-700 dark:text-gray-300 font-medium">
+              {progressMessage}
+            </p>
+            <p className="text-center text-sm text-gray-500 dark:text-gray-400">
+              생성 중에는 페이지를 닫지 마세요
+            </p>
+          </div>
         </div>
       )}
 
