@@ -30,6 +30,7 @@ export default function GroupPage() {
 
   // 로딩 상태
   const [loading, setLoading] = useState(false);
+  const [wrongQuestionsLoading, setWrongQuestionsLoading] = useState(true);
 
   const commentEndRef = useRef(null);
 
@@ -74,6 +75,7 @@ export default function GroupPage() {
 
   // 많이 틀린 문제 불러오기
   const loadWrongQuestions = async () => {
+    setWrongQuestionsLoading(true);
     try {
       const res = await fetch(`/api/room/${roomId}/wrong-questions`);
       const data = await res.json();
@@ -85,6 +87,8 @@ export default function GroupPage() {
       }
     } catch (err) {
       console.error('많이 틀린 문제 조회 오류:', err);
+    } finally {
+      setWrongQuestionsLoading(false);
     }
   };
 
@@ -291,7 +295,11 @@ export default function GroupPage() {
             </span>
           </h2>
 
-          {wrongQuestions.length === 0 ? (
+          {wrongQuestionsLoading ? (
+            <div className="text-gray-600 dark:text-gray-400 text-center py-12">
+              <p className="text-lg">불러오는 중...</p>
+            </div>
+          ) : wrongQuestions.length === 0 ? (
             <div className="text-gray-600 dark:text-gray-400 text-center py-12">
               <p className="text-lg mb-2">많이 틀린 문제가 없습니다</p>
               <p className="text-sm">그룹원들이 퀴즈를 풀면 통계가 표시됩니다</p>

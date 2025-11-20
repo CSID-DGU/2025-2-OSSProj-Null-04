@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
-export default function RoomNavBar({ roomId }) {
+export default function RoomNavBar({ roomId, userRole }) {
   const pathname = usePathname();
 
   const tabs = [
@@ -12,6 +12,11 @@ export default function RoomNavBar({ roomId }) {
     { name: '그룹학습', path: `/room/${roomId}/group` },
     { name: '일정관리', path: `/room/${roomId}/schedule` },
   ];
+
+  // owner만 관리 탭 추가
+  if (userRole === 'owner') {
+    tabs.push({ name: '관리', path: `/room/${roomId}/manage` });
+  }
 
   const isActive = (path) => pathname === path;
 
