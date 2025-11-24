@@ -25,10 +25,10 @@ export async function GET(request, { params }) {
       return NextResponse.json({ error: '강의실 멤버가 아닙니다' }, { status: 403 });
     }
 
-    // 강의실의 모든 퀴즈 가져오기
+    // 강의실의 모든 퀴즈 가져오기 (제목 포함)
     const { data: quizzes, error: quizError } = await supabase
       .from('Quiz')
-      .select('QuizID')
+      .select('QuizID, QuizTitle')
       .eq('QuizRoomID', roomId);
 
     if (quizError || !quizzes || quizzes.length === 0) {
@@ -36,6 +36,7 @@ export async function GET(request, { params }) {
     }
 
     const quizIds = quizzes.map(q => q.QuizID);
+    const quizMap = new Map(quizzes.map(q => [q.QuizID, q.QuizTitle]));
 
     // 강의실 멤버 수 조회
     const { data: members, error: memberError } = await supabase
@@ -140,6 +141,7 @@ export async function GET(request, { params }) {
 
         return {
           ...question,
+          quizTitle: quizMap.get(question.QuizID),
           attemptCount,
           wrongCount,
           wrongRate: Math.round(wrongRate),

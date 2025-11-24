@@ -32,7 +32,27 @@ export default function GroupPage() {
   const [loading, setLoading] = useState(false);
   const [wrongQuestionsLoading, setWrongQuestionsLoading] = useState(true);
 
+  // AI 챗봇 관련 상태
+  const [chatSessionId, setChatSessionId] = useState(null);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatInput, setChatInput] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
+  const [streamingMessage, setStreamingMessage] = useState('');
+  const [chatSessionLoading, setChatSessionLoading] = useState(false);
+
+  // 댓글 로딩 상태
+  const [commentsLoading, setCommentsLoading] = useState(false);
+
+  // 리사이저 상태
+  const [leftWidth, setLeftWidth] = useState(50); // 왼쪽 섹션 너비 비율 (%)
+  const [questionHeight, setQuestionHeight] = useState(55); // 문제 섹션 높이 비율 (%)
+  const [isResizingHorizontal, setIsResizingHorizontal] = useState(false);
+  const [isResizingVertical, setIsResizingVertical] = useState(false);
+  const containerRef = useRef(null);
+  const leftSectionRef = useRef(null);
+
   const commentEndRef = useRef(null);
+  const chatEndRef = useRef(null);
 
   // 초기 로드: 퀴즈 목록 및 많이 틀린 문제 가져오기
   useEffect(() => {
@@ -113,6 +133,7 @@ export default function GroupPage() {
 
   // 문제의 댓글 불러오기
   const loadComments = async (questionId) => {
+    setCommentsLoading(true);
     try {
       const res = await fetch(`/api/question/${questionId}/comments`);
       const data = await res.json();
@@ -124,6 +145,113 @@ export default function GroupPage() {
       }
     } catch (err) {
       console.error('댓글 조회 오류:', err);
+    } finally {
+      setCommentsLoading(false);
+    }
+  };
+
+  // AI 챗봇 세션 로드
+  const loadChatSession = async (questionId) => {
+    setChatSessionLoading(true);
+    try {
+      const res = await fetch('/api/chat/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ questionId }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        setChatSessionId(data.session.sessionId);
+        setChatMessages(data.messages || []);
+      } else {
+        console.error('채팅 세션 로드 실패:', data.error);
+      }
+    } catch (err) {
+      console.error('채팅 세션 로드 오류:', err);
+    } finally {
+      setChatSessionLoading(false);
+    }
+  };
+
+  // AI 챗봇 메시지 전송 (스트리밍)
+  const handleSendChatMessage = async (e) => {
+    e.preventDefault();
+
+    if (!chatInput.trim() || chatLoading) return;
+
+    const userMessage = chatInput.trim();
+    setChatInput('');
+    setChatLoading(true);
+    setStreamingMessage('');
+
+    // 사용자 메시지 즉시 표시
+    setChatMessages(prev => [...prev, {
+      AI_chatID: Date.now(),
+      sender: 'User',
+      message: userMessage,
+      created_at: new Date().toISOString(),
+    }]);
+
+    try {
+      const res = await fetch('/api/chat/message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: chatSessionId,
+          questionId: selectedQuestion.QuestionID,
+          message: userMessage,
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error('메시지 전송 실패');
+      }
+
+      // 스트리밍 응답 처리
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let fullMessage = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            if (data === '[DONE]') {
+              // 스트리밍 완료 - 전체 메시지를 채팅 목록에 추가
+              setChatMessages(prev => [...prev, {
+                AI_chatID: Date.now() + 1,
+                sender: 'AI',
+                message: fullMessage,
+                created_at: new Date().toISOString(),
+              }]);
+              setStreamingMessage('');
+            } else {
+              try {
+                const parsed = JSON.parse(data);
+                if (parsed.content) {
+                  fullMessage += parsed.content;
+                  setStreamingMessage(fullMessage);
+                }
+              } catch (e) {
+                // JSON 파싱 실패 무시
+              }
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error('메시지 전송 오류:', err);
+      alert('메시지 전송에 실패했습니다');
+    } finally {
+      setChatLoading(false);
     }
   };
 
@@ -194,6 +322,9 @@ export default function GroupPage() {
   const handleQuestionClick = (question) => {
     setSelectedQuestion(question);
     loadComments(question.QuestionID);
+    loadChatSession(question.QuestionID);
+    setChatMessages([]);
+    setStreamingMessage('');
     setView('detail');
   };
 
@@ -212,6 +343,11 @@ export default function GroupPage() {
       setSelectedQuestion(null);
       setComments([]);
       setNewComment('');
+      // 채팅 상태 초기화
+      setChatSessionId(null);
+      setChatMessages([]);
+      setChatInput('');
+      setStreamingMessage('');
     } else if (view === 'questions') {
       setView('main');
       setSelectedQuiz(null);
@@ -271,6 +407,11 @@ export default function GroupPage() {
     commentEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [comments]);
 
+  // 채팅 메시지가 추가되면 스크롤
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatMessages, streamingMessage]);
+
   // 시간 포맷팅
   const formatTime = (timestamp) => {
     const date = new Date(timestamp);
@@ -282,103 +423,212 @@ export default function GroupPage() {
     });
   };
 
+  // 수평 리사이저 핸들러 (왼쪽/오른쪽 너비 조절)
+  const handleHorizontalMouseDown = (e) => {
+    e.preventDefault();
+    setIsResizingHorizontal(true);
+  };
+
+  // 수직 리사이저 핸들러 (문제/댓글 높이 조절)
+  const handleVerticalMouseDown = (e) => {
+    e.preventDefault();
+    setIsResizingVertical(true);
+  };
+
+  // 마우스 이동 및 해제 이벤트
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      if (isResizingHorizontal && containerRef.current) {
+        const containerRect = containerRef.current.getBoundingClientRect();
+        const newWidth = ((e.clientX - containerRect.left) / containerRect.width) * 100;
+        setLeftWidth(Math.min(Math.max(newWidth, 25), 75)); // 25% ~ 75% 제한
+      }
+      if (isResizingVertical && leftSectionRef.current) {
+        const sectionRect = leftSectionRef.current.getBoundingClientRect();
+        const newHeight = ((e.clientY - sectionRect.top) / sectionRect.height) * 100;
+        setQuestionHeight(Math.min(Math.max(newHeight, 20), 80)); // 20% ~ 80% 제한
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsResizingHorizontal(false);
+      setIsResizingVertical(false);
+    };
+
+    if (isResizingHorizontal || isResizingVertical) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = isResizingHorizontal ? 'col-resize' : 'row-resize';
+      document.body.style.userSelect = 'none';
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [isResizingHorizontal, isResizingVertical]);
+
   // === 메인 화면 ===
   if (view === 'main') {
     return (
       <div className="h-[calc(100vh-12rem)] flex gap-6">
         {/* 왼쪽: 많이 틀린 문제 */}
-        <div className="w-1/2 bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-            많이 틀린 문제
-            <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">
-              ({wrongQuestions.length})
-            </span>
-          </h2>
+        <div className="w-1/2 bg-white dark:bg-gray-800 rounded-xl shadow-lg flex flex-col">
+          <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-red-500"></div>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                많이 틀린 문제
+              </h2>
+              <span className="ml-auto text-sm text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded-full">
+                {wrongQuestions.length}개
+              </span>
+            </div>
+          </div>
 
-          {wrongQuestionsLoading ? (
-            <div className="text-gray-600 dark:text-gray-400 text-center py-12">
-              <p className="text-lg">불러오는 중...</p>
-            </div>
-          ) : wrongQuestions.length === 0 ? (
-            <div className="text-gray-600 dark:text-gray-400 text-center py-12">
-              <p className="text-lg mb-2">많이 틀린 문제가 없습니다</p>
-              <p className="text-sm">그룹원들이 퀴즈를 풀면 통계가 표시됩니다</p>
-            </div>
-          ) : (
-            <div className="space-y-3 overflow-y-auto max-h-[calc(100vh-18rem)]">
-              {wrongQuestions.map((question, index) => {
-                const correctRate = 100 - question.wrongRate;
-                return (
-                  <div
-                    key={question.QuestionID}
-                    onClick={() => handleWrongQuestionClick(question)}
-                    className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 hover:bg-primary-50 dark:hover:bg-primary-900/20 cursor-pointer transition-colors"
-                  >
-                    <div className="flex items-start gap-3">
-                      <span className="flex-shrink-0 w-8 h-8 bg-red-600 text-white rounded-full flex items-center justify-center font-semibold text-sm">
-                        {index + 1}
-                      </span>
-                      <div className="flex-1">
-                        <p className="text-gray-900 dark:text-white line-clamp-2 mb-2">
-                          {question.question}
-                        </p>
-                        <div className="flex items-center gap-2 text-sm">
-                          <span className={`font-semibold ${
-                            correctRate < 40 ? 'text-red-600 dark:text-red-400' :
-                            correctRate < 60 ? 'text-orange-600 dark:text-orange-400' :
-                            'text-yellow-600 dark:text-yellow-400'
-                          }`}>
-                            정답률: {correctRate}%
-                          </span>
-                          <span className="text-gray-500 dark:text-gray-400">
-                            ({question.attemptCount}/{question.totalMembers}명 응답)
-                          </span>
+          <div className="flex-1 overflow-y-auto p-4">
+            {wrongQuestionsLoading ? (
+              <div className="text-gray-500 dark:text-gray-400 text-center py-12">
+                <p>로딩 중...</p>
+              </div>
+            ) : wrongQuestions.length === 0 ? (
+              <div className="text-gray-500 dark:text-gray-400 text-center py-12">
+                <svg className="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <p className="font-medium mb-1">많이 틀린 문제가 없습니다</p>
+                <p className="text-sm">그룹원들이 퀴즈를 풀면 통계가 표시됩니다</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {wrongQuestions.map((question, index) => {
+                  const correctRate = 100 - question.wrongRate;
+                  // 정답률에 따른 색상: 높을수록 초록색, 낮을수록 빨간색
+                  const getGradientColor = () => {
+                    if (correctRate >= 70) return 'from-green-500 to-green-600'; // 정답률 70%+
+                    if (correctRate >= 50) return 'from-yellow-400 to-yellow-500'; // 정답률 50-70%
+                    if (correctRate >= 30) return 'from-orange-400 to-orange-500'; // 정답률 30-50%
+                    return 'from-red-500 to-red-600'; // 정답률 30%-
+                  };
+                  const getBarColor = () => {
+                    if (correctRate >= 70) return 'bg-green-500';
+                    if (correctRate >= 50) return 'bg-yellow-500';
+                    if (correctRate >= 30) return 'bg-orange-500';
+                    return 'bg-red-500';
+                  };
+                  const getTextColor = () => {
+                    if (correctRate >= 70) return 'text-green-600 dark:text-green-400';
+                    if (correctRate >= 50) return 'text-yellow-600 dark:text-yellow-400';
+                    if (correctRate >= 30) return 'text-orange-600 dark:text-orange-400';
+                    return 'text-red-600 dark:text-red-400';
+                  };
+                  return (
+                    <div
+                      key={question.QuestionID}
+                      onClick={() => handleWrongQuestionClick(question)}
+                      className="group bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4 hover:bg-red-50 dark:hover:bg-red-900/10 cursor-pointer transition-all duration-200 border border-transparent hover:border-red-200 dark:hover:border-red-800"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`flex-shrink-0 w-8 h-8 bg-gradient-to-br ${getGradientColor()} text-white rounded-lg flex items-center justify-center font-bold text-sm shadow-sm`}>
+                          {index + 1}
                         </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-gray-900 dark:text-white line-clamp-2 text-sm leading-relaxed mb-2">
+                            {question.question}
+                          </p>
+                          <div className="flex items-center flex-wrap gap-2">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300">
+                              {question.quizTitle || '퀴즈'}
+                            </span>
+                            <div className="flex items-center gap-1">
+                              <span className="text-xs text-gray-500 dark:text-gray-400">정답률:</span>
+                              <div className="w-16 h-1.5 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full ${getBarColor()}`}
+                                  style={{ width: `${correctRate}%` }}
+                                ></div>
+                              </div>
+                              <span className={`text-xs font-semibold ${getTextColor()}`}>
+                                {correctRate}%
+                              </span>
+                            </div>
+                            <span className="text-xs text-gray-400 dark:text-gray-500">
+                              {question.attemptCount}명 응답
+                            </span>
+                          </div>
+                        </div>
+                        <svg className="w-5 h-5 text-gray-300 dark:text-gray-600 group-hover:text-red-400 transition-colors flex-shrink-0 self-center" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* 오른쪽: 퀴즈 리스트 */}
-        <div className="w-1/2 bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-            전체 퀴즈 리스트
-            <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">
-              ({quizzes.length})
-            </span>
-          </h2>
+        <div className="w-1/2 bg-white dark:bg-gray-800 rounded-xl shadow-lg flex flex-col">
+          <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-primary-500"></div>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                전체 퀴즈 리스트
+              </h2>
+              <span className="ml-auto text-sm text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded-full">
+                {quizzes.length}개
+              </span>
+            </div>
+          </div>
 
-          {loading ? (
-            <div className="text-center text-gray-500 dark:text-gray-400 py-8">
-              로딩 중...
-            </div>
-          ) : quizzes.length === 0 ? (
-            <div className="text-center text-gray-500 dark:text-gray-400 py-8">
-              <p className="text-lg mb-2">아직 퀴즈가 없습니다</p>
-              <p className="text-sm">퀴즈 탭에서 퀴즈를 생성해보세요</p>
-            </div>
-          ) : (
-            <div className="space-y-3 overflow-y-auto max-h-[calc(100vh-18rem)]">
-              {quizzes.map((quiz) => (
-                <div
-                  key={quiz.QuizID}
-                  onClick={() => handleQuizClick(quiz)}
-                  className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 hover:bg-primary-50 dark:hover:bg-primary-900/20 cursor-pointer transition-colors"
-                >
-                  <h3 className="font-semibold text-gray-900 dark:text-white text-lg mb-1">
-                    {quiz.QuizTitle}
-                  </h3>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    {formatTime(quiz.CreatedAt)}
-                  </p>
-                </div>
-              ))}
-            </div>
-          )}
+          <div className="flex-1 overflow-y-auto p-4">
+            {loading ? (
+              <div className="text-center text-gray-500 dark:text-gray-400 py-12">
+                <p>로딩 중...</p>
+              </div>
+            ) : quizzes.length === 0 ? (
+              <div className="text-center text-gray-500 dark:text-gray-400 py-12">
+                <svg className="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+                <p className="font-medium mb-1">아직 퀴즈가 없습니다</p>
+                <p className="text-sm">퀴즈 탭에서 퀴즈를 생성해보세요</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {quizzes.map((quiz) => (
+                  <div
+                    key={quiz.QuizID}
+                    onClick={() => handleQuizClick(quiz)}
+                    className="group bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4 hover:bg-primary-50 dark:hover:bg-primary-900/10 cursor-pointer transition-all duration-200 border border-transparent hover:border-primary-200 dark:hover:border-primary-800"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="flex-shrink-0 w-8 h-8 bg-gray-100 dark:bg-gray-600 rounded-lg flex items-center justify-center">
+                        <svg className="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                        </svg>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold text-gray-900 dark:text-white truncate">
+                          {quiz.QuizTitle}
+                        </h3>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                          {formatTime(quiz.CreatedAt)}
+                        </p>
+                      </div>
+                      <svg className="w-5 h-5 text-gray-300 dark:text-gray-600 group-hover:text-primary-500 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -388,52 +638,69 @@ export default function GroupPage() {
   if (view === 'questions') {
     return (
       <div className="h-[calc(100vh-12rem)]">
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 h-full flex flex-col">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg h-full flex flex-col">
           {/* 헤더 */}
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-              {selectedQuiz?.QuizTitle}
-              <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">
-                ({questions.length}문제)
-              </span>
-            </h2>
-            <button
-              onClick={handleBack}
-              className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg font-semibold transition-colors"
-            >
-              뒤로가기
-            </button>
+          <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleBack}
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-primary-500"></div>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  {selectedQuiz?.QuizTitle}
+                </h2>
+              </div>
+              {!loading && (
+                <span className="ml-auto text-sm text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded-full">
+                  {questions.length}문제
+                </span>
+              )}
+            </div>
           </div>
 
           {/* 문제 리스트 */}
-          {loading ? (
-            <div className="text-center text-gray-500 dark:text-gray-400 py-8">
-              로딩 중...
-            </div>
-          ) : questions.length === 0 ? (
-            <div className="text-center text-gray-500 dark:text-gray-400 py-8">
-              <p className="text-lg mb-2">문제가 없습니다</p>
-            </div>
-          ) : (
-            <div className="space-y-3 overflow-y-auto flex-1">
-              {questions.map((question, index) => (
-                <div
-                  key={question.QuestionID}
-                  onClick={() => handleQuestionClick(question)}
-                  className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 hover:bg-primary-50 dark:hover:bg-primary-900/20 cursor-pointer transition-colors"
-                >
-                  <div className="flex items-start gap-3">
-                    <span className="flex-shrink-0 w-8 h-8 bg-primary-600 text-white rounded-full flex items-center justify-center font-semibold">
-                      {index + 1}
-                    </span>
-                    <p className="flex-1 text-gray-900 dark:text-white line-clamp-2">
-                      {question.question}
-                    </p>
+          <div className="flex-1 overflow-y-auto p-4">
+            {loading ? (
+              <div className="text-center text-gray-500 dark:text-gray-400 py-12">
+                <p>로딩 중...</p>
+              </div>
+            ) : questions.length === 0 ? (
+              <div className="text-center text-gray-500 dark:text-gray-400 py-12">
+                <svg className="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <p className="font-medium mb-1">문제가 없습니다</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {questions.map((question, index) => (
+                  <div
+                    key={question.QuestionID}
+                    onClick={() => handleQuestionClick(question)}
+                    className="group bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4 hover:bg-primary-50 dark:hover:bg-primary-900/10 cursor-pointer transition-all duration-200 border border-transparent hover:border-primary-200 dark:hover:border-primary-800"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="flex-shrink-0 w-8 h-8 border-2 border-gray-300 dark:border-gray-500 text-gray-600 dark:text-gray-400 rounded-lg flex items-center justify-center font-semibold text-sm">
+                        {index + 1}
+                      </div>
+                      <p className="flex-1 text-gray-900 dark:text-white line-clamp-2 text-sm">
+                        {question.question}
+                      </p>
+                      <svg className="w-5 h-5 text-gray-300 dark:text-gray-600 group-hover:text-primary-500 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -442,25 +709,27 @@ export default function GroupPage() {
   // === 문제 상세 화면 ===
   if (view === 'detail') {
     return (
-      <div className="h-[calc(100vh-12rem)] flex gap-6">
+      <div ref={containerRef} className="h-[calc(100vh-10rem)] flex">
         {/* 왼쪽 섹션 */}
-        <div className="w-1/2 flex flex-col gap-6">
+        <div ref={leftSectionRef} className="flex flex-col" style={{ width: `${leftWidth}%` }}>
           {/* 상단: 문제 및 보기 */}
-          <div className="h-1/2 bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                문제
-              </h2>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg flex flex-col" style={{ height: `${questionHeight}%` }}>
+            <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-200 dark:border-gray-700">
               <button
                 onClick={handleBack}
-                className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg font-semibold transition-colors text-sm"
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
               >
-                뒤로가기
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
               </button>
+              <h2 className="text-base font-semibold text-gray-900 dark:text-white">
+                문제
+              </h2>
             </div>
 
-            <div className="space-y-4">
-              <p className="text-gray-900 dark:text-white text-lg font-medium">
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              <p className="text-gray-900 dark:text-white font-medium">
                 {selectedQuestion?.question}
               </p>
 
@@ -474,7 +743,7 @@ export default function GroupPage() {
                   return (
                     <div
                       key={option}
-                      className={`p-3 rounded-lg border-2 ${
+                      className={`p-2.5 rounded-lg border-2 text-sm ${
                         isCorrect
                           ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
                           : 'border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700'
@@ -497,11 +766,11 @@ export default function GroupPage() {
               </div>
 
               {selectedQuestion?.explanation && (
-                <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border-l-4 border-blue-500">
-                  <p className="font-semibold text-blue-900 dark:text-blue-300 mb-2">
+                <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border-l-4 border-blue-500">
+                  <p className="font-semibold text-blue-900 dark:text-blue-300 mb-1 text-sm">
                     해설
                   </p>
-                  <p className="text-gray-700 dark:text-gray-300">
+                  <p className="text-gray-700 dark:text-gray-300 text-sm">
                     {selectedQuestion.explanation}
                   </p>
                 </div>
@@ -509,10 +778,18 @@ export default function GroupPage() {
             </div>
           </div>
 
+          {/* 수직 리사이저 (문제/댓글 사이) */}
+          <div
+            className="h-2 cursor-row-resize flex items-center justify-center group"
+            onMouseDown={handleVerticalMouseDown}
+          >
+            <div className="w-12 h-1 bg-gray-300 dark:bg-gray-600 rounded-full group-hover:bg-primary-400 transition-colors"></div>
+          </div>
+
           {/* 하단: 댓글 */}
-          <div className="h-1/2 bg-white dark:bg-gray-800 rounded-lg shadow-lg flex flex-col">
-            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg flex flex-col flex-1 min-h-0">
+            <div className="px-3 py-2 border-b border-gray-200 dark:border-gray-700">
+              <h2 className="text-base font-semibold text-gray-900 dark:text-white">
                 댓글
                 <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">
                   ({comments.length})
@@ -520,64 +797,73 @@ export default function GroupPage() {
               </h2>
             </div>
 
-            {/* 댓글 목록 */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-4">
-              {comments.length === 0 ? (
-                <div className="text-center text-gray-500 dark:text-gray-400 py-8">
-                  <p className="text-lg mb-2">아직 댓글이 없습니다</p>
-                  <p className="text-sm">첫 번째 댓글을 작성해보세요!</p>
+            {/* 댓글 목록 - 말풍선 스타일 */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {commentsLoading ? (
+                <div className="text-center text-gray-500 dark:text-gray-400 py-4">
+                  <p className="text-sm">로딩 중...</p>
+                </div>
+              ) : comments.length === 0 ? (
+                <div className="text-center text-gray-500 dark:text-gray-400 py-4">
+                  <p className="text-sm">아직 댓글이 없습니다</p>
                 </div>
               ) : (
-                comments.map((comment) => (
-                  <div
-                    key={comment.CommentId}
-                    className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4"
-                  >
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 bg-primary-600 text-white rounded-full flex items-center justify-center font-semibold text-sm">
-                          {comment.User?.name?.[0] || '?'}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <p className="font-semibold text-gray-900 dark:text-white text-sm">
+                comments.map((comment) => {
+                  const isMyComment = currentUser && comment.UserID === currentUser.id;
+                  return (
+                    <div
+                      key={comment.CommentId}
+                      className={`flex ${isMyComment ? 'justify-end' : 'justify-start'}`}
+                    >
+                      <div className={`max-w-[85%] ${isMyComment ? 'order-2' : ''}`}>
+                        {/* 이름 + 시간 */}
+                        <div className={`flex items-center gap-2 mb-1 ${isMyComment ? 'justify-end' : ''}`}>
+                          <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
                             {comment.User?.name || '알 수 없음'}
-                          </p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                          </span>
+                          <span className="text-xs text-gray-400 dark:text-gray-500">
                             {formatTime(comment.TypeTime)}
-                          </p>
+                          </span>
+                          {isMyComment && (
+                            <button
+                              onClick={() => handleDeleteComment(comment.CommentId)}
+                              className="text-xs text-red-500 hover:text-red-600"
+                            >
+                              삭제
+                            </button>
+                          )}
+                        </div>
+                        {/* 말풍선 */}
+                        <div
+                          className={`p-2.5 rounded-lg text-sm ${
+                            isMyComment
+                              ? 'bg-primary-600 text-white'
+                              : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white'
+                          }`}
+                        >
+                          <p className="whitespace-pre-wrap">{comment.Comment}</p>
                         </div>
                       </div>
-                      {currentUser && comment.UserID === currentUser.id && (
-                        <button
-                          onClick={() => handleDeleteComment(comment.CommentId)}
-                          className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 text-sm"
-                        >
-                          삭제
-                        </button>
-                      )}
                     </div>
-                    <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap ml-10">
-                      {comment.Comment}
-                    </p>
-                  </div>
-                ))
+                  );
+                })
               )}
               <div ref={commentEndRef} />
             </div>
 
             {/* 댓글 작성 폼 */}
-            <form onSubmit={handleAddComment} className="p-6 border-t border-gray-200 dark:border-gray-700">
+            <form onSubmit={handleAddComment} className="p-4 border-t border-gray-200 dark:border-gray-700">
               <div className="flex gap-2">
                 <input
                   type="text"
                   value={newComment}
                   onChange={(e) => setNewComment(e.target.value)}
                   placeholder="댓글을 입력하세요..."
-                  className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-600"
+                  className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-600"
                 />
                 <button
                   type="submit"
-                  className="px-6 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-semibold transition-colors"
+                  className="px-4 py-2 text-sm bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition-colors"
                 >
                   전송
                 </button>
@@ -586,24 +872,116 @@ export default function GroupPage() {
           </div>
         </div>
 
+        {/* 수평 리사이저 (왼쪽/오른쪽 사이) */}
+        <div
+          className="w-2 cursor-col-resize flex items-center justify-center group"
+          onMouseDown={handleHorizontalMouseDown}
+        >
+          <div className="h-12 w-1 bg-gray-300 dark:bg-gray-600 rounded-full group-hover:bg-primary-400 transition-colors"></div>
+        </div>
+
         {/* 오른쪽: AI 챗봇 */}
-        <div className="w-1/2 bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-            AI 학습 도우미
-          </h2>
-          <div className="text-gray-600 dark:text-gray-400 text-center py-12">
-            <p className="text-lg mb-2">준비 중입니다</p>
-            <p className="text-sm mb-4">AI가 이 문제에 대해 도움을 줄 예정입니다</p>
-            <div className="space-y-2 text-left max-w-md mx-auto">
-              <p className="text-sm">• 문제 풀이 힌트 제공</p>
-              <p className="text-sm">• 추가 설명</p>
-              <p className="text-sm">• 유사 문제 추천</p>
-            </div>
+        <div className="flex-1 bg-white dark:bg-gray-800 rounded-lg shadow-lg flex flex-col">
+          <div className="px-3 py-2 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+            <h2 className="text-base font-semibold text-gray-900 dark:text-white">
+              AI 학습 도우미
+            </h2>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              이 문제에 대해 궁금한 점을 물어보세요
+            </p>
           </div>
+
+          {/* 채팅 메시지 목록 */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            {chatSessionLoading ? (
+              <div className="text-center text-gray-500 dark:text-gray-400 py-4">
+                <p className="text-sm">로딩 중...</p>
+              </div>
+            ) : chatMessages.length === 0 && !streamingMessage ? (
+              <div className="text-center text-gray-500 dark:text-gray-400 py-6">
+                <p className="text-sm mb-2">AI에게 질문해보세요</p>
+                <div className="space-y-1 text-xs">
+                  <p>"이 문제 왜 틀렸어?"</p>
+                  <p>"정답이 왜 A야?"</p>
+                  <p>"관련 개념 설명해줘"</p>
+                </div>
+              </div>
+            ) : (
+              <>
+                {chatMessages.map((msg) => (
+                  <div
+                    key={msg.AI_chatID}
+                    className={`flex ${msg.sender === 'User' ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div
+                      className={`max-w-[85%] p-2.5 rounded-lg ${
+                        msg.sender === 'User'
+                          ? 'bg-primary-600 text-white'
+                          : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white'
+                      }`}
+                    >
+                      <p className="whitespace-pre-wrap text-sm">{msg.message}</p>
+                    </div>
+                  </div>
+                ))}
+                {/* 스트리밍 중인 메시지 */}
+                {streamingMessage && (
+                  <div className="flex justify-start">
+                    <div className="max-w-[85%] p-2.5 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white">
+                      <p className="whitespace-pre-wrap text-sm">{streamingMessage}</p>
+                    </div>
+                  </div>
+                )}
+                {/* 로딩 중 표시 */}
+                {chatLoading && !streamingMessage && (
+                  <div className="flex justify-start">
+                    <div className="p-2.5 rounded-lg bg-gray-100 dark:bg-gray-700">
+                      <div className="flex gap-1">
+                        <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                        <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                        <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+            <div ref={chatEndRef} />
+          </div>
+
+          {/* 채팅 입력 폼 */}
+          <form onSubmit={handleSendChatMessage} className="p-4 border-t border-gray-200 dark:border-gray-700">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                placeholder="질문을 입력하세요..."
+                disabled={chatLoading || !chatSessionId}
+                className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-600 disabled:bg-gray-100 dark:disabled:bg-gray-600"
+              />
+              <button
+                type="submit"
+                disabled={chatLoading || !chatInput.trim() || !chatSessionId}
+                className="px-4 py-2 text-sm bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+              >
+                {chatLoading ? '...' : '전송'}
+              </button>
+            </div>
+          </form>
         </div>
       </div>
     );
   }
+
+  // 문제 토론하기 핸들러 (재풀이 후 상세 화면으로 이동)
+  const handleGoToDiscussion = () => {
+    loadComments(selectedQuestion.QuestionID);
+    loadChatSession(selectedQuestion.QuestionID);
+    setChatMessages([]);
+    setStreamingMessage('');
+    setView('detail');
+  };
 
   // === 재풀이 모드 화면 ===
   if (view === 'retry') {
@@ -612,22 +990,29 @@ export default function GroupPage() {
 
     return (
       <div className="h-[calc(100vh-12rem)]">
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 h-full flex flex-col">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg h-full flex flex-col">
           {/* 헤더 */}
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-              문제 다시 풀기
-            </h2>
-            <button
-              onClick={handleBack}
-              className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg font-semibold transition-colors"
-            >
-              뒤로가기
-            </button>
+          <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleBack}
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  문제 다시 풀기
+                </h2>
+              </div>
+            </div>
           </div>
 
           {/* 문제 내용 */}
-          <div className="flex-1 overflow-y-auto space-y-4">
+          <div className="flex-1 overflow-y-auto p-5 space-y-4">
             <p className="text-gray-900 dark:text-white text-lg font-medium">
               {selectedQuestion?.question}
             </p>
@@ -734,17 +1119,27 @@ export default function GroupPage() {
             )}
           </div>
 
-          {/* 제출 버튼 */}
-          {!showResult && (
-            <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+          {/* 하단 버튼 영역 */}
+          <div className="p-5 border-t border-gray-200 dark:border-gray-700">
+            {!showResult ? (
               <button
                 onClick={handleSubmitAnswer}
                 className="w-full py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-semibold transition-colors"
               >
                 답안 제출
               </button>
-            </div>
-          )}
+            ) : (
+              <button
+                onClick={handleGoToDiscussion}
+                className="w-full py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-semibold transition-colors flex items-center justify-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+                문제 토론하기
+              </button>
+            )}
+          </div>
         </div>
       </div>
     );
