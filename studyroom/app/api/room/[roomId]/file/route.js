@@ -105,6 +105,7 @@ export async function POST(request, context) {
         fileName: file.name,
         filePath: fileUrl,
         fileBuffer,
+        fileMime: file.type || '',
       });
     } catch (vectorError) {
       console.error('File chunk embedding error:', vectorError);
