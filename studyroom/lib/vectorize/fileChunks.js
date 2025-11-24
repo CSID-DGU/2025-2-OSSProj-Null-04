@@ -1,10 +1,24 @@
+import path from 'path';
+import { randomUUID } from 'crypto';
 import OpenAI from 'openai';
+import { Storage } from '@google-cloud/storage';
+import { ImageAnnotatorClient } from '@google-cloud/vision';
 import { getSupabaseServiceClient } from '@/lib/supabase/service';
 
 const EMBEDDING_MODEL = 'text-embedding-3-small';
 const MAX_BATCH = 100; // keep batches small to avoid hitting rate limits
 const DEFAULT_CHUNK_SIZE = 800;
 const DEFAULT_CHUNK_OVERLAP = 200;
+const FILE_TYPES = {
+  PDF: 'pdf',
+  WORD: 'word',
+  HANGUL: 'hangul',
+  TEXT: 'text',
+  IMAGE: 'image',
+  OTHER: 'other',
+};
+const storageClient = new Storage();
+const visionFileClient = new ImageAnnotatorClient();
 
 function getOpenAIClient() {
   const apiKey = process.env.OPENAI_API_KEY;
@@ -14,9 +28,192 @@ function getOpenAIClient() {
   return new OpenAI({ apiKey });
 }
 
-function normalizeText(buffer) {
-  const text = buffer.toString('utf-8');
+function normalizeText(input) {
+  if (!input) {
+    return '';
+  }
+  const text = Buffer.isBuffer(input) ? input.toString('utf-8') : String(input);
   return text.replace(/\r\n/g, '\n').trim();
+}
+
+function detectFileType(fileName = '', contentType = '') {
+  const loweredMime = (contentType || '').toLowerCase();
+  const ext = (fileName && path.extname(fileName).toLowerCase()) || '';
+
+  if (ext === '.pdf' || loweredMime.includes('pdf')) {
+    return FILE_TYPES.PDF;
+  }
+
+  if (ext === '.doc' || ext === '.docx' || loweredMime.includes('word')) {
+    return FILE_TYPES.WORD;
+  }
+
+  if (ext === '.hwp' || ext === '.hwpx' || loweredMime.includes('hwp')) {
+    return FILE_TYPES.HANGUL;
+  }
+
+  if (
+    loweredMime.startsWith('image/') ||
+    ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.tiff'].includes(ext)
+  ) {
+    return FILE_TYPES.IMAGE;
+  }
+
+  if (
+    loweredMime.startsWith('text/') ||
+    ['.txt', '.md', '.csv', '.json'].includes(ext)
+  ) {
+    return FILE_TYPES.TEXT;
+  }
+
+  return FILE_TYPES.OTHER;
+}
+
+async function extractTextWithVision(buffer, mimeType) {
+  const apiKey = process.env.GOOGLE_API_KEY;
+  if (!apiKey) {
+    console.warn('GOOGLE_API_KEY is not configured; skipping OCR fallback.');
+    return '';
+  }
+
+  const endpoint = `https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`;
+  const payload = {
+    requests: [
+      {
+        image: { content: buffer.toString('base64') },
+        features: [{ type: 'DOCUMENT_TEXT_DETECTION' }],
+      },
+    ],
+  };
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    console.error('Google Vision API error:', await response.text());
+    return '';
+  }
+
+  const result = await response.json();
+  const text = result?.responses?.[0]?.fullTextAnnotation?.text || '';
+  return normalizeText(text);
+}
+
+async function extractPdfTextWithVisionAsync(buffer, mimeType = 'application/pdf') {
+  const bucketName = process.env.GOOGLE_OCR_GCS_BUCKET;
+  if (!bucketName) {
+    throw new Error('GOOGLE_OCR_GCS_BUCKET is not configured');
+  }
+
+  const bucket = storageClient.bucket(bucketName);
+  const uniqueId = randomUUID();
+  const inputPath = `ocr-input/${uniqueId}.pdf`;
+  const outputPrefix = `ocr-output/${uniqueId}/`;
+
+  try {
+    await bucket.file(outputPrefix).save('', { resumable: false });
+    await bucket.file(inputPath).save(buffer, {
+      resumable: false,
+      contentType: mimeType,
+      metadata: { cacheControl: 'no-cache' },
+    });
+
+    const request = {
+      requests: [
+        {
+          inputConfig: {
+            gcsSource: { uri: `gs://${bucketName}/${inputPath}` },
+            mimeType,
+          },
+          features: [{ type: 'DOCUMENT_TEXT_DETECTION' }],
+          outputConfig: {
+            gcsDestination: { uri: `gs://${bucketName}/${outputPrefix}` },
+            batchSize: 20,
+          },
+        },
+      ],
+    };
+
+    const [operation] = await visionFileClient.asyncBatchAnnotateFiles(request);
+    await operation.promise();
+
+    const [outputFiles] = await bucket.getFiles({ prefix: outputPrefix });
+    if (!outputFiles || outputFiles.length === 0) {
+      console.warn('Vision async batch returned no OCR output files');
+      return '';
+    }
+
+    const collectedText = [];
+    for (const file of outputFiles) {
+      try {
+        const [contents] = await file.download();
+        const parsed = JSON.parse(contents.toString('utf-8'));
+        parsed?.responses?.forEach((response) => {
+          const annotation = response?.fullTextAnnotation?.text;
+          if (annotation) {
+            collectedText.push(annotation);
+          }
+        });
+      } catch (error) {
+        console.error('Failed to parse Vision OCR output:', error);
+      }
+    }
+
+    return normalizeText(collectedText.join('\n'));
+  } catch (error) {
+    console.error('Vision async batch OCR failed:', error);
+    return '';
+  } finally {
+    try {
+      await bucket.file(inputPath).delete({ ignoreNotFound: true });
+    } catch (error) {
+      console.warn('Failed to delete OCR input file:', error);
+    }
+
+    try {
+      const [outputFiles] = await bucket.getFiles({ prefix: outputPrefix });
+      await Promise.all(
+        (outputFiles || []).map((file) =>
+          file.delete().catch((err) => {
+            console.warn('Failed to delete OCR output file:', err);
+          }),
+        ),
+      );
+    } catch (error) {
+      console.warn('Failed to clean up OCR output files:', error);
+    }
+  }
+}
+
+async function extractTextFromFile(buffer, fileType, mimeType = '') {
+  if (fileType === FILE_TYPES.PDF) {
+    const ocrText = await extractPdfTextWithVisionAsync(buffer, mimeType || 'application/pdf');
+    if (ocrText) {
+      return ocrText;
+    }
+
+    throw new Error('PDF 파일에서 텍스트를 추출할 수 없습니다');
+  }
+
+  if (fileType === FILE_TYPES.IMAGE) {
+    const ocrText = await extractTextWithVision(buffer, mimeType || 'image/png');
+    if (ocrText) {
+      return ocrText;
+    }
+    return '';
+  }
+
+  if (fileType === FILE_TYPES.OTHER && (mimeType || '').toLowerCase().startsWith('image/')) {
+    const ocrText = await extractTextWithVision(buffer, mimeType);
+    if (ocrText) {
+      return ocrText;
+    }
+  }
+
+  return normalizeText(buffer);
 }
 
 function chunkText(text, chunkSize = DEFAULT_CHUNK_SIZE, overlap = DEFAULT_CHUNK_OVERLAP) {
@@ -66,6 +263,7 @@ export async function vectorizeFileChunks({
   fileName,
   filePath,
   fileBuffer,
+  fileMime,
 }) {
   if (!fileId || !roomId || !filePath) {
     throw new Error('vectorizeFileChunks: missing required identifiers');
@@ -95,7 +293,8 @@ export async function vectorizeFileChunks({
     buffer = Buffer.from(arrayBuffer);
   }
 
-  const normalized = normalizeText(buffer);
+  const fileType = detectFileType(fileName, fileMime);
+  const normalized = await extractTextFromFile(buffer, fileType, fileMime);
   if (!normalized) {
     return { chunkCount: 0 };
   }
