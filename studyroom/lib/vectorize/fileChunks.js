@@ -17,7 +17,26 @@ const FILE_TYPES = {
   IMAGE: 'image',
   OTHER: 'other',
 };
-const storageClient = new Storage();
+function resolveServiceAccountPath(rawPath = '') {
+  if (!rawPath) {
+    return undefined;
+  }
+
+  if (path.isAbsolute(rawPath)) {
+    return rawPath;
+  }
+
+  const cwd = process.cwd();
+  const cwdName = path.basename(cwd);
+  const normalized = rawPath.startsWith(`${cwdName}/`)
+    ? rawPath.slice(cwdName.length + 1)
+    : rawPath;
+
+  return path.join(cwd, normalized);
+}
+
+const serviceAccountPath = resolveServiceAccountPath(process.env.GOOGLE_APPLICATION_CREDENTIALS);
+const storageClient = serviceAccountPath ? new Storage({ keyFilename: serviceAccountPath }) : new Storage();
 const visionFileClient = new ImageAnnotatorClient();
 
 function getOpenAIClient() {
