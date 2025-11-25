@@ -10,8 +10,8 @@ export async function GET(request, { params }) {
       return NextResponse.json({ error: '로그인이 필요합니다' }, { status: 401 });
     }
 
-    const { roomId } = params;
-    const supabase = createClient();
+    const { roomId } = await params;
+    const supabase = await createClient();
 
     // 멤버십 확인
     const { data: membership } = await supabase

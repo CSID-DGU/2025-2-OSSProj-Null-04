@@ -10,14 +10,14 @@ export async function POST(request, { params }) {
       return NextResponse.json({ error: '로그인이 필요합니다' }, { status: 401 });
     }
 
-    const { roomId, quizId } = params;
+    const { roomId, quizId } = await params;
     const { answers } = await request.json(); // answers: [{ questionId, userAnswer }, ...]
 
     if (!answers || !Array.isArray(answers)) {
       return NextResponse.json({ error: '답안 형식이 올바르지 않습니다' }, { status: 400 });
     }
 
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // 멤버십 확인
     const { data: membership } = await supabase

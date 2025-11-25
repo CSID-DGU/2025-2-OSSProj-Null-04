@@ -15,7 +15,7 @@ export async function POST(request) {
       return Response.json({ error: 'questionId가 필요합니다' }, { status: 400 });
     }
 
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // 기존 세션 조회
     const { data: existingSession } = await supabase

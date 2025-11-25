@@ -8,8 +8,8 @@ export default async function RoomIdLayout({ children, params }) {
   // 로그인 필수
   const user = await requireAuth();
 
-  const { roomId } = params;
-  const supabase = createClient();
+  const { roomId } = await params;
+  const supabase = await createClient();
 
   // 강의실 정보 조회
   const { data: room, error } = await supabase

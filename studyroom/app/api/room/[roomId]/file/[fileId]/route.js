@@ -25,7 +25,7 @@ export async function DELETE(request, { params }) {
       );
     }
 
-    const { roomId, fileId } = params ?? {};
+    const { roomId, fileId } = await params ?? {};
     if (!roomId || !fileId) {
       return NextResponse.json(
         { error: '유효하지 않은 요청입니다' },

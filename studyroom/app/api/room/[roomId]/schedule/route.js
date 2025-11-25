@@ -15,10 +15,10 @@ export async function GET(request, { params }) {
     }
 
     // 2. roomId 파라미터 추출
-    const { roomId } = params;
+    const { roomId } = await params;
 
     // 3. Supabase 클라이언트 생성
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // 4. 사용자가 해당 강의실의 멤버인지 확인
     const { data: membership, error: memberError } = await supabase
@@ -76,7 +76,7 @@ export async function POST(request, { params }) {
     }
 
     // 2. roomId 파라미터 추출
-    const { roomId } = params;
+    const { roomId } = await params;
 
     // 3. 요청 body 파싱
     const { eventTitle, eventDate } = await request.json();
@@ -89,7 +89,7 @@ export async function POST(request, { params }) {
     }
 
     // 4. Supabase 클라이언트 생성
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // 5. 사용자가 해당 강의실의 멤버인지 확인 (권한 체크)
     const { data: membership, error: memberError } = await supabase
@@ -152,7 +152,7 @@ export async function DELETE(request, { params }) {
     }
 
     // 2. roomId 파라미터 추출
-    const { roomId } = params;
+    const { roomId } = await params;
 
     // 3. 요청 body에서 eventId 추출
     const { searchParams } = new URL(request.url);
@@ -166,7 +166,7 @@ export async function DELETE(request, { params }) {
     }
 
     // 4. Supabase 클라이언트 생성
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // 5. 사용자가 해당 강의실의 멤버인지 확인
     const { data: membership, error: memberError } = await supabase

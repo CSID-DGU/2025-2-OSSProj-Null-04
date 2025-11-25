@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 
 export async function POST() {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // Supabase Auth 로그아웃 (세션 및 쿠키 삭제)
     const { error } = await supabase.auth.signOut();

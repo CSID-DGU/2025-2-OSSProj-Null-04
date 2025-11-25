@@ -13,7 +13,7 @@ export async function POST(request, { params }) {
       );
     }
 
-    const { roomId } = params ?? {};
+    const { roomId } = await params ?? {};
     if (!roomId) {
       return NextResponse.json(
         { error: '유효하지 않은 요청입니다' },

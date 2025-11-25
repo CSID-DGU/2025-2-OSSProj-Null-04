@@ -15,7 +15,7 @@ export async function GET(request) {
     }
 
     // 2. Supabase 클라이언트 생성
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // 3. 오늘 날짜 범위 계산
     const today = new Date();
@@ -81,7 +81,7 @@ export async function POST(request) {
     // studyTime: 타이머 시작 시각 (ISO string) - pause/reset 시 사용
 
     // 3. Supabase 클라이언트 생성
-    const supabase = createClient();
+    const supabase = await createClient();
 
     if (action === 'start') {
       // 기존에 활성화된 타이머 확인 및 정리
