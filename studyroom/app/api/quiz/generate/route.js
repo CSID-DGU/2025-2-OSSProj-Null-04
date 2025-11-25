@@ -1,7 +1,7 @@
-import { createClient } from '@/lib/supabase/server';
 import { getCurrentUser } from '@/lib/auth';
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { getRelevantChunks } from '@/lib/vectorize/semanticSearch';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -17,8 +17,6 @@ export async function POST(request) {
 
     const { fileIds, questionCount, difficulty, quizTitle } = await request.json();
 
-    const supabase = await createClient();
-
     // 난이도별 프롬프트 조정
     const difficultyMap = {
       easy: '쉬운',
@@ -30,30 +28,19 @@ export async function POST(request) {
     let context = '';
     let useRAG = false;
 
-    // 파일이 선택된 경우: RAG 사용
+    // 파일이 선택된 경우: 임베딩 기반 RAG 사용
     if (fileIds && Array.isArray(fileIds) && fileIds.length > 0) {
       useRAG = true;
 
-      // 파일의 청크 데이터 가져오기
-      const { data: chunks, error: chunksError } = await supabase
-        .from('FileChunk')
-        .select('ChunkText, ChunkMetadata')
-        .in('FileID', fileIds)
-        .order('FileID', { ascending: true })
-        .order('ChunkIndex', { ascending: true });
+      // 의미론적 검색으로 관련 청크 가져오기
+      // quizTitle을 기반으로 광범위한 주제 vs 구체적 주제 자동 감지
+      context = await getRelevantChunks(quizTitle || '', fileIds, 8000);
 
-      if (chunksError) throw chunksError;
-
-      if (!chunks || chunks.length === 0) {
+      if (!context) {
         return NextResponse.json({ error: '선택한 파일에 처리된 내용이 없습니다' }, { status: 400 });
       }
 
-      // 청크를 하나의 컨텍스트로 결합 (토큰 제한 고려)
-      context = chunks.map(chunk => chunk.ChunkText).join('\n\n');
-      const maxContextLength = 8000; // 안전한 토큰 제한
-      context = context.length > maxContextLength
-        ? context.substring(0, maxContextLength) + '...'
-        : context;
+      console.log(`[Quiz Generate] 컨텍스트 ${context.length}자 사용`);
     }
 
     // OpenAI API 호출

@@ -150,7 +150,7 @@ async function extractPdfTextWithVisionAsync(buffer, mimeType = 'application/pdf
           features: [{ type: 'DOCUMENT_TEXT_DETECTION' }],
           outputConfig: {
             gcsDestination: { uri: `gs://${bucketName}/${outputPrefix}` },
-            batchSize: 20,
+            batchSize: 10,
           },
         },
       ],
@@ -160,6 +160,11 @@ async function extractPdfTextWithVisionAsync(buffer, mimeType = 'application/pdf
     await operation.promise();
 
     const [outputFiles] = await bucket.getFiles({ prefix: outputPrefix });
+
+    // 로그 추가: OCR 출력 파일 확인
+    console.log(`[OCR Debug] 총 ${outputFiles?.length || 0}개 파일 발견:`,
+      outputFiles?.map(f => f.name) || []);
+
     if (!outputFiles || outputFiles.length === 0) {
       console.warn('Vision async batch returned no OCR output files');
       return '';
@@ -167,17 +172,21 @@ async function extractPdfTextWithVisionAsync(buffer, mimeType = 'application/pdf
 
     const collectedText = [];
     for (const file of outputFiles) {
-      try {
-        const [contents] = await file.download();
-        const parsed = JSON.parse(contents.toString('utf-8'));
-        parsed?.responses?.forEach((response) => {
-          const annotation = response?.fullTextAnnotation?.text;
-          if (annotation) {
-            collectedText.push(annotation);
-          }
-        });
-      } catch (error) {
-        console.error('Failed to parse Vision OCR output:', error);
+      // 실제 JSON 파일만 처리 (빈 디렉토리 파일 제외)
+      if (file.name.endsWith('.json')) {
+        console.log(`[OCR Debug] 처리 중: ${file.name}`);
+        try {
+          const [contents] = await file.download();
+          const parsed = JSON.parse(contents.toString('utf-8'));
+          parsed?.responses?.forEach((response) => {
+            const annotation = response?.fullTextAnnotation?.text;
+            if (annotation) {
+              collectedText.push(annotation);
+            }
+          });
+        } catch (error) {
+          console.error(`Failed to parse Vision OCR output from ${file.name}:`, error);
+        }
       }
     }
 

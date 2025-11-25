@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { getCurrentUser } from '@/lib/auth';
 import openai, { getQuestionHelperSystemPrompt } from '@/lib/openai';
+import { generateEmbedding, searchSimilarChunks } from '@/lib/vectorize/semanticSearch';
 
 // POST: 메시지 전송 + 스트리밍 응답
 export async function POST(request) {
@@ -21,12 +22,54 @@ export async function POST(request) {
     // 문제 정보 조회
     const { data: question, error: questionError } = await supabase
       .from('Question')
-      .select('QuestionID, question, optionA, optionB, optionC, optionD, correctAnswer, explanation')
+      .select('QuestionID, question, optionA, optionB, optionC, optionD, correctAnswer, explanation, QuizID')
       .eq('QuestionID', questionId)
       .single();
 
     if (questionError || !question) {
       return Response.json({ error: '문제를 찾을 수 없습니다' }, { status: 404 });
+    }
+
+    // QuizSourceFiles를 통해 출처 파일 추적
+    let additionalContext = null;
+    if (question.QuizID) {
+      const { data: sourceFiles } = await supabase
+        .from('QuizSourceFiles')
+        .select('FileID')
+        .eq('QuizID', question.QuizID);
+
+      if (sourceFiles && sourceFiles.length > 0) {
+        const fileIds = sourceFiles.map(sf => sf.FileID);
+        console.log(`[Chat] 출처 파일 ${fileIds.length}개 발견`);
+
+        // 사용자 질문 임베딩 생성
+        const queryEmbedding = await generateEmbedding(message);
+
+        if (queryEmbedding) {
+          // 관련 청크 검색 (threshold 0.6, 최대 10개)
+          const chunks = await searchSimilarChunks(queryEmbedding, fileIds, {
+            threshold: 0.6,
+            limit: 10,
+          });
+
+          if (chunks && chunks.length > 0) {
+            console.log(`[Chat] ${chunks.length}개 관련 청크 발견`);
+
+            // 청크를 최대 2000자까지 연결
+            let contextText = '';
+            for (const chunk of chunks) {
+              const nextText = contextText + chunk.ChunkText + '\n\n---\n\n';
+              if (nextText.length > 2000) break;
+              contextText = nextText;
+            }
+
+            if (contextText.length > 0) {
+              additionalContext = contextText.trim();
+              console.log(`[Chat] 컨텍스트 ${additionalContext.length}자 추가`);
+            }
+          }
+        }
+      }
     }
 
     // 사용자 메시지 저장
@@ -51,9 +94,9 @@ export async function POST(request) {
       .order('created_at', { ascending: true })
       .limit(10);
 
-    // OpenAI 메시지 배열 구성
+    // OpenAI 메시지 배열 구성 (추가 컨텍스트 전달)
     const messages = [
-      { role: 'system', content: getQuestionHelperSystemPrompt(question) },
+      { role: 'system', content: getQuestionHelperSystemPrompt(question, additionalContext) },
       ...(history || []).map(msg => ({
         role: msg.sender === 'User' ? 'user' : 'assistant',
         content: msg.message,
