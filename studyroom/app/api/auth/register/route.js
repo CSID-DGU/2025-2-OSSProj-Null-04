@@ -29,7 +29,7 @@ export async function POST(request) {
       );
     }
 
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // Supabase Auth로 회원가입
     const { data: authData, error: authError } = await supabase.auth.signUp({

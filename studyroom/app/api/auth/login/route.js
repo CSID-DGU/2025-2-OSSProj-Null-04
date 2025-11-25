@@ -12,7 +12,7 @@ export async function POST(request) {
       );
     }
 
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // Supabase Auth로 로그인
     const { data: authData, error: authError } = await supabase.auth.signInWithPassword({

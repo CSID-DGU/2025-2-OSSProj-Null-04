@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 
 export async function GET(request) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // Supabase Auth에서 현재 세션 확인
     const { data: { user }, error } = await supabase.auth.getUser();

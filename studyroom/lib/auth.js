@@ -6,7 +6,7 @@ import { redirect } from 'next/navigation';
  * @returns {Promise<Object|null>} 사용자 정보 또는 null
  */
 export async function getCurrentUser() {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const { data: { user }, error } = await supabase.auth.getUser();
 
@@ -59,7 +59,7 @@ export async function isAuthenticated() {
  */
 export async function checkRoomMembership(roomId, userId) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     const { data, error } = await supabase
       .from('RoomMember')
@@ -87,7 +87,7 @@ export async function checkRoomMembership(roomId, userId) {
  */
 export async function isRoomOwner(roomId, userId) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     const { data, error } = await supabase
       .from('Room')

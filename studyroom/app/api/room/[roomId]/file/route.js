@@ -18,7 +18,7 @@ export async function POST(request, context) {
     }
 
     const { params } = await context;
-    const { roomId } = params ?? {};
+    const { roomId } = await params ?? {};
     if (!roomId) {
       return NextResponse.json(
         { error: '유효하지 않은 요청입니다' },
@@ -148,7 +148,7 @@ export async function GET(request, context) {
     }
 
     const { params } = await context;
-    const { roomId } = params ?? {};
+    const { roomId } = await params ?? {};
     if (!roomId) {
       return NextResponse.json(
         { error: '유효하지 않은 요청입니다' },

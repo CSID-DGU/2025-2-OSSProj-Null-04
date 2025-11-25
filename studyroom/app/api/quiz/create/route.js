@@ -21,7 +21,7 @@ export async function POST(request) {
       return NextResponse.json({ error: '필수 정보를 입력해주세요' }, { status: 400 });
     }
 
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // 멤버십 확인
     const { data: membership } = await supabase

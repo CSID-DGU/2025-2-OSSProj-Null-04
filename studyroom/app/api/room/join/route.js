@@ -17,7 +17,7 @@ export async function POST(request) {
       return Response.json({ error: '올바른 PIN을 입력해주세요 (6자리 숫자)' }, { status: 400 });
     }
 
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // Step 1: PIN으로 강의실 검색
     const { data: room, error: roomError } = await supabase

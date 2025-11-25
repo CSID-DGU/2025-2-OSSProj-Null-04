@@ -17,7 +17,7 @@ export async function POST(request) {
 
     const { fileIds, questionCount, difficulty, quizTitle } = await request.json();
 
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // 난이도별 프롬프트 조정
     const difficultyMap = {

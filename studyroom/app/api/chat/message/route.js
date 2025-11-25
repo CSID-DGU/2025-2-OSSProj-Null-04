@@ -16,7 +16,7 @@ export async function POST(request) {
       return Response.json({ error: '필수 파라미터가 누락되었습니다' }, { status: 400 });
     }
 
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // 문제 정보 조회
     const { data: question, error: questionError } = await supabase

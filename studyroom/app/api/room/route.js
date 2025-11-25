@@ -10,7 +10,7 @@ export async function GET() {
       return Response.json({ error: '로그인이 필요합니다' }, { status: 401 });
     }
 
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // RoomMember 테이블에서 현재 사용자의 강의실 조회
     const { data: roomMembers, error: memberError } = await supabase
@@ -93,7 +93,7 @@ export async function POST(request) {
       return Response.json({ error: '강의실 이름은 필수입니다' }, { status: 400 });
     }
 
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // 중복되지 않는 PIN 자동 생성
     const enterPin = await generateUniquePin(supabase);
