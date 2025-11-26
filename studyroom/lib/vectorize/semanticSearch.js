@@ -205,8 +205,8 @@ export async function getRelevantChunks(quizTitle, fileIds, maxChars = 8000) {
       return await getAllChunks(fileIds, maxChars);
     }
 
-    // 3. 단계적 threshold 조정 (0.7 → 0.6 → 0.5)
-    const thresholds = [0.7, 0.6, 0.5];
+    // 3. 단계적 threshold 조정 (0.7 → 0.6 → 0.5 → 0.4 → 0.35 → 0.3)
+    const thresholds = [0.7, 0.6, 0.5, 0.4, 0.35, 0.3];
     for (const threshold of thresholds) {
       const chunks = await searchSimilarChunks(queryEmbedding, fileIds, {
         threshold,

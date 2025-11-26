@@ -46,15 +46,23 @@ export async function POST(request) {
         const queryEmbedding = await generateEmbedding(message);
 
         if (queryEmbedding) {
-          // 관련 청크 검색 (threshold 0.6, 최대 10개)
-          const chunks = await searchSimilarChunks(queryEmbedding, fileIds, {
-            threshold: 0.6,
-            limit: 10,
-          });
+          // 단계적 threshold 조정 (0.6 → 0.5 → 0.4 → 0.35 → 0.3)
+          const thresholds = [0.6, 0.5, 0.4, 0.35, 0.3];
+          let chunks = null;
+
+          for (const threshold of thresholds) {
+            chunks = await searchSimilarChunks(queryEmbedding, fileIds, {
+              threshold,
+              limit: 10,
+            });
+
+            if (chunks && chunks.length > 0) {
+              console.log(`[Chat] threshold ${threshold}에서 ${chunks.length}개 청크 발견`);
+              break; // 첫 번째 성공한 threshold에서 중단
+            }
+          }
 
           if (chunks && chunks.length > 0) {
-            console.log(`[Chat] ${chunks.length}개 관련 청크 발견`);
-
             // 청크를 최대 2000자까지 연결
             let contextText = '';
             for (const chunk of chunks) {
