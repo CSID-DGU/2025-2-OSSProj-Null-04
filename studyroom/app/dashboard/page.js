@@ -8,17 +8,17 @@ import LogoutButton from './LogoutButton';
 export default function DashboardPage() {
   const router = useRouter();
   const [user, setUser] = useState(null);
-  
+
   // 타이머 상태
   const [isRunning, setIsRunning] = useState(false);
   const [currentTime, setCurrentTime] = useState(0); // 초 단위
   const [totalStudyTime, setTotalStudyTime] = useState(0); // 분 단위
-  
+
   // 일정 상태
   const [schedules, setSchedules] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  
+
   // 타이머 interval ref
   const timerRef = useRef(null);
 
@@ -50,14 +50,14 @@ export default function DashboardPage() {
   const checkAuth = async () => {
     try {
       const res = await fetch('/api/auth/me');
-      
+
       if (res.status === 401) {
         router.push('/login');
         return;
       }
 
       const data = await res.json();
-      
+
       if (res.ok) {
         setUser(data.user);
         loadStudyTime();
@@ -75,14 +75,14 @@ export default function DashboardPage() {
   const loadStudyTime = async () => {
     try {
       const res = await fetch('/api/main/studytime');
-      
+
       if (res.status === 401) {
         router.push('/login');
         return;
       }
 
       const data = await res.json();
-      
+
       if (!res.ok) {
         setError(data.error);
         return;
@@ -265,7 +265,10 @@ export default function DashboardPage() {
   if (!user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <p className="text-gray-600 dark:text-gray-400">로딩 중...</p>
+        <div className="text-center animate-pulse">
+          <div className="inline-block w-12 h-12 border-4 border-primary-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-400 font-medium">로딩 중...</p>
+        </div>
       </div>
     );
   }
@@ -300,10 +303,11 @@ export default function DashboardPage() {
             <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">
               나의 강의실 일정
             </h2>
-            
+
             {loading ? (
-              <div className="text-center py-12 text-gray-600 dark:text-gray-400">
-                <p className="text-lg">일정을 불러오는 중...</p>
+              <div className="text-center py-12 text-gray-600 dark:text-gray-400 animate-pulse">
+                <div className="inline-block w-10 h-10 border-4 border-primary-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+                <p className="text-lg font-medium">일정을 불러오는 중...</p>
               </div>
             ) : schedules.length === 0 ? (
               <div className="text-center py-12 text-gray-600 dark:text-gray-400">
@@ -315,7 +319,7 @@ export default function DashboardPage() {
                 {schedules.map((schedule) => (
                   <div
                     key={schedule.EventID}
-                    className="flex items-center justify-between bg-gray-50 dark:bg-gray-700 rounded-lg p-4 hover:shadow-md transition-shadow"
+                    className="flex items-center justify-between bg-gray-50 dark:bg-gray-700 rounded-lg p-4 hover:shadow-md transition-all duration-300"
                   >
                     <div className="flex-1">
                       <h3 className="font-semibold text-gray-900 dark:text-white text-lg">
@@ -335,13 +339,12 @@ export default function DashboardPage() {
                     </div>
                     <div className="text-right ml-4">
                       <span
-                        className={`inline-block px-4 py-2 rounded-full text-xl font-bold ${
-                          schedule.dday === 0
+                        className={`inline-block px-4 py-2 rounded-full text-xl font-bold ${schedule.dday === 0
                             ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
                             : schedule.dday <= 7
-                            ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
-                            : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                        }`}
+                              ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
+                              : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                          }`}
                       >
                         {formatDday(schedule.dday)}
                       </span>
@@ -359,12 +362,12 @@ export default function DashboardPage() {
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
                 스터디 타이머
               </h2>
-              
+
               <div className="text-center mb-6">
                 <div className="text-5xl font-bold text-blue-600 dark:text-blue-400 mb-6">
                   {formatTime(currentTime)}
                 </div>
-                
+
                 <div className="flex justify-center gap-3">
                   {/* 시작 버튼 (실행 중이 아닐 때만 표시) */}
                   {!isRunning && (

@@ -23,6 +23,7 @@ export default function TakeQuizPage() {
 
   useEffect(() => {
     fetchQuiz();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId, quizId]);
 
   const fetchQuiz = async () => {
@@ -247,14 +248,12 @@ export default function TakeQuizPage() {
 
         {/* 정답/오답 메시지 */}
         {showResult && (
-          <div className={`mt-6 p-4 rounded-lg ${
-            isCorrect
+          <div className={`mt-6 p-4 rounded-lg ${isCorrect
               ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800'
               : 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800'
-          }`}>
-            <p className={`font-semibold mb-2 ${
-              isCorrect ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'
             }`}>
+            <p className={`font-semibold mb-2 ${isCorrect ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'
+              }`}>
               {isCorrect ? '✓ 정답입니다!' : '✗ 오답입니다.'}
             </p>
             {currentQuestion.explanation && (

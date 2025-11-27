@@ -34,7 +34,7 @@ export default function QuizPage() {
   };
 
   return (
-    <div className="p-6">
+    <div className="p-6 transition-all duration-300">
       {/* 헤더 & 퀴즈 생성 버튼 */}
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
@@ -57,9 +57,9 @@ export default function QuizPage() {
 
       {/* 로딩 */}
       {loading ? (
-        <div className="text-center py-12">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-          <p className="mt-4 text-gray-600 dark:text-gray-400">퀴즈 목록을 불러오는 중...</p>
+        <div className="text-center py-12 animate-pulse">
+          <div className="inline-block animate-spin rounded-full h-10 w-10 border-4 border-primary-600 border-t-transparent mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-400 font-medium">퀴즈 목록을 불러오는 중...</p>
         </div>
       ) : quizzes.length === 0 ? (
         /* 퀴즈 없음 */
@@ -90,7 +90,7 @@ export default function QuizPage() {
           {quizzes.map((quiz) => (
             <div
               key={quiz.QuizID}
-              className="bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-lg transition-shadow p-6 flex justify-between items-center"
+              className="bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-lg transition-all duration-300 p-6 flex justify-between items-center"
             >
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">

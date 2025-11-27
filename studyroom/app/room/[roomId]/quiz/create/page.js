@@ -81,6 +81,7 @@ export default function CreateQuizPage() {
 
   useEffect(() => {
     fetchFiles();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId]);
 
   const fetchFiles = async () => {
@@ -188,7 +189,7 @@ export default function CreateQuizPage() {
       return;
     }
     if (!currentQuestion.optionA.trim() || !currentQuestion.optionB.trim() ||
-        !currentQuestion.optionC.trim() || !currentQuestion.optionD.trim()) {
+      !currentQuestion.optionC.trim() || !currentQuestion.optionD.trim()) {
       alert('모든 선택지를 입력해주세요');
       return;
     }

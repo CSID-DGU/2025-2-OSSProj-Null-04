@@ -92,9 +92,11 @@ export default function GroupPage() {
 
   // 문제 목록 상태 (동적 로드)
   const [questions, setQuestions] = useState([]);
+  const [questionsLoading, setQuestionsLoading] = useState(false);
 
   // 퀴즈의 문제 목록 불러오기
   const loadQuestions = async (quizId) => {
+    setQuestionsLoading(true);
     try {
       const res = await fetch(`/api/quiz/${roomId}/${quizId}`);
       const data = await res.json();
@@ -106,6 +108,8 @@ export default function GroupPage() {
       }
     } catch (err) {
       console.error('문제 조회 오류:', err);
+    } finally {
+      setQuestionsLoading(false);
     }
   };
 
@@ -474,9 +478,9 @@ export default function GroupPage() {
   // === 메인 화면 ===
   if (view === 'main') {
     return (
-      <div className="h-[calc(100vh-12rem)] flex gap-6">
+      <div className="h-[calc(100vh-12rem)] flex gap-6 transition-all duration-300">
         {/* 왼쪽: 많이 틀린 문제 */}
-        <div className="w-1/2 bg-white dark:bg-gray-800 rounded-xl shadow-lg flex flex-col">
+        <div className="w-1/2 bg-white dark:bg-gray-800 rounded-xl shadow-lg flex flex-col transition-all duration-300 hover:shadow-xl">
           <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700">
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-red-500"></div>
@@ -491,7 +495,8 @@ export default function GroupPage() {
 
           <div className="flex-1 overflow-y-auto p-4">
             {wrongQuestionsLoading ? (
-              <div className="text-gray-500 dark:text-gray-400 text-center py-12">
+              <div className="text-gray-500 dark:text-gray-400 text-center py-12 animate-pulse">
+                <div className="inline-block w-8 h-8 border-4 border-primary-600 border-t-transparent rounded-full animate-spin mb-3"></div>
                 <p>로딩 중...</p>
               </div>
             ) : wrongQuestions.length === 0 ? (
@@ -573,7 +578,7 @@ export default function GroupPage() {
         </div>
 
         {/* 오른쪽: 퀴즈 리스트 */}
-        <div className="w-1/2 bg-white dark:bg-gray-800 rounded-xl shadow-lg flex flex-col">
+        <div className="w-1/2 bg-white dark:bg-gray-800 rounded-xl shadow-lg flex flex-col transition-all duration-300 hover:shadow-xl">
           <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700">
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-primary-500"></div>
@@ -588,7 +593,8 @@ export default function GroupPage() {
 
           <div className="flex-1 overflow-y-auto p-4">
             {loading ? (
-              <div className="text-center text-gray-500 dark:text-gray-400 py-12">
+              <div className="text-center text-gray-500 dark:text-gray-400 py-12 animate-pulse">
+                <div className="inline-block w-8 h-8 border-4 border-primary-600 border-t-transparent rounded-full animate-spin mb-3"></div>
                 <p>로딩 중...</p>
               </div>
             ) : quizzes.length === 0 ? (
@@ -638,8 +644,8 @@ export default function GroupPage() {
   // === 문제 리스트 화면 ===
   if (view === 'questions') {
     return (
-      <div className="h-[calc(100vh-12rem)]">
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg h-full flex flex-col">
+      <div className="h-[calc(100vh-12rem)] transition-all duration-300">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg h-full flex flex-col transition-all duration-300">
           {/* 헤더 */}
           <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700">
             <div className="flex items-center gap-3">
@@ -667,9 +673,10 @@ export default function GroupPage() {
 
           {/* 문제 리스트 */}
           <div className="flex-1 overflow-y-auto p-4">
-            {loading ? (
-              <div className="text-center text-gray-500 dark:text-gray-400 py-12">
-                <p>로딩 중...</p>
+            {questionsLoading ? (
+              <div className="text-center text-gray-500 dark:text-gray-400 py-12 animate-pulse">
+                <div className="inline-block w-8 h-8 border-4 border-primary-600 border-t-transparent rounded-full animate-spin mb-3"></div>
+                <p>문제 로딩 중...</p>
               </div>
             ) : questions.length === 0 ? (
               <div className="text-center text-gray-500 dark:text-gray-400 py-12">
@@ -800,8 +807,9 @@ export default function GroupPage() {
             {/* 댓글 목록 - 말풍선 스타일 */}
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
               {commentsLoading ? (
-                <div className="text-center text-gray-500 dark:text-gray-400 py-4">
-                  <p className="text-sm">로딩 중...</p>
+                <div className="text-center text-gray-500 dark:text-gray-400 py-4 animate-pulse">
+                  <div className="inline-block w-6 h-6 border-3 border-primary-600 border-t-transparent rounded-full animate-spin mb-2"></div>
+                  <p className="text-sm">댓글 로딩 중...</p>
                 </div>
               ) : comments.length === 0 ? (
                 <div className="text-center text-gray-500 dark:text-gray-400 py-4">
@@ -900,9 +908,9 @@ export default function GroupPage() {
               <div className="text-center text-gray-500 dark:text-gray-400 py-6">
                 <p className="text-sm mb-2">AI에게 질문해보세요</p>
                 <div className="space-y-1 text-xs">
-                  <p>"이 문제 왜 틀렸어?"</p>
-                  <p>"정답이 왜 A야?"</p>
-                  <p>"관련 개념 설명해줘"</p>
+                  <p>&quot;이 문제 왜 틀렸어?&quot;</p>
+                  <p>&quot;정답이 왜 A야?&quot;</p>
+                  <p>&quot;관련 개념 설명해줘&quot;</p>
                 </div>
               </div>
             ) : (

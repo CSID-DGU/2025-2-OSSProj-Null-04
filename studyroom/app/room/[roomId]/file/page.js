@@ -90,7 +90,7 @@ export default function FilePage() {
   };
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 transition-all duration-300">
       <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
         파일 관리 페이지
       </h2>
@@ -137,7 +137,10 @@ export default function FilePage() {
         </h3>
 
         {filesLoading && (
-          <p className="text-sm text-gray-600 dark:text-gray-300">불러오는 중...</p>
+          <div className="text-center py-8 animate-pulse">
+            <div className="inline-block w-8 h-8 border-4 border-primary-600 border-t-transparent rounded-full animate-spin mb-3"></div>
+            <p className="text-sm text-gray-600 dark:text-gray-300 font-medium">파일 목록을 불러오는 중...</p>
+          </div>
         )}
 
         {filesError && (
