@@ -137,7 +137,7 @@ export default function SchedulePage() {
   };
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 transition-all duration-300">
       {/* 헤더 */}
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">
@@ -201,14 +201,15 @@ export default function SchedulePage() {
 
       {/* 로딩 중 */}
       {loading ? (
-        <div className="text-center py-12 text-gray-600 dark:text-gray-400">
-          <p className="text-lg">일정을 불러오는 중...</p>
+        <div className="text-center py-12 text-gray-600 dark:text-gray-400 animate-pulse">
+          <div className="inline-block w-10 h-10 border-4 border-primary-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+          <p className="text-lg font-medium">일정을 불러오는 중...</p>
         </div>
       ) : schedules.length === 0 ? (
         /* 일정 없음 */
         <div className="text-center py-12 text-gray-600 dark:text-gray-400">
           <p className="text-lg">등록된 일정이 없습니다</p>
-          <p className="text-sm mt-2">오른쪽 상단의 '+ 일정 추가' 버튼을 눌러 일정을 추가하세요</p>
+          <p className="text-sm mt-2">오른쪽 상단의 &apos;+ 일정 추가&apos; 버튼을 눌러 일정을 추가하세요</p>
         </div>
       ) : (
         /* 일정 목록 */
@@ -218,7 +219,7 @@ export default function SchedulePage() {
             return (
               <div
                 key={schedule.EventID}
-                className="flex items-center justify-between bg-gray-50 dark:bg-gray-700 rounded-lg p-4 hover:shadow-md transition-shadow"
+                className="flex items-center justify-between bg-gray-50 dark:bg-gray-700 rounded-lg p-4 hover:shadow-md transition-all duration-300"
               >
                 <div className="flex-1">
                   <h3 className="font-semibold text-gray-900 dark:text-white text-lg">
@@ -235,15 +236,14 @@ export default function SchedulePage() {
                 </div>
                 <div className="flex items-center gap-3">
                   <span
-                    className={`inline-block px-4 py-2 rounded-full text-xl font-bold ${
-                      dday === 0
-                        ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                        : dday > 0 && dday <= 7
+                    className={`inline-block px-4 py-2 rounded-full text-xl font-bold ${dday === 0
+                      ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                      : dday > 0 && dday <= 7
                         ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
                         : dday > 0
-                        ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                        : 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400'
-                    }`}
+                          ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                          : 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400'
+                      }`}
                   >
                     {formatDday(dday)}
                   </span>

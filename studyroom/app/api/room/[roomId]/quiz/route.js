@@ -25,10 +25,15 @@ export async function GET(request, { params }) {
       return NextResponse.json({ error: '강의실 멤버가 아닙니다' }, { status: 403 });
     }
 
-    // 퀴즈 목록 조회
+    // 퀴즈 목록 조회 (문제 개수 포함)
     const { data: quizzes, error } = await supabase
       .from('Quiz')
-      .select('*')
+      .select(`
+        *,
+        Question (
+          QuestionID
+        )
+      `)
       .eq('QuizRoomID', roomId)
       .order('CreatedAt', { ascending: false });
 
@@ -37,7 +42,13 @@ export async function GET(request, { params }) {
       return NextResponse.json({ error: '퀴즈 목록을 불러올 수 없습니다' }, { status: 500 });
     }
 
-    return NextResponse.json({ quizzes });
+    // 문제 개수 추가
+    const quizList = quizzes.map(quiz => ({
+      ...quiz,
+      questionCount: quiz.Question?.length || 0
+    }));
+
+    return NextResponse.json({ quizzes: quizList });
   } catch (err) {
     console.error('퀴즈 조회 오류:', err);
     return NextResponse.json({ error: '서버 오류가 발생했습니다' }, { status: 500 });
