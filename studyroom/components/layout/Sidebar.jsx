@@ -3,17 +3,24 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
 
 export default function Sidebar({ user }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [rooms, setRooms] = useState({ owner: [], member: [] });
-  const [loading, setLoading] = useState(true);
   const pathname = usePathname();
 
-  useEffect(() => {
-    // 강의실 목록 불러오기
-    fetchRooms();
-  }, []);
+  // TanStack Query로 강의실 목록 캐싱
+  const { data: rooms = { owner: [], member: [] }, isLoading: loading } = useQuery({
+    queryKey: ['rooms'],
+    queryFn: async () => {
+      const res = await fetch('/api/room');
+      if (!res.ok) {
+        throw new Error('강의실 목록 조회 실패');
+      }
+      return res.json();
+    },
+    staleTime: 5 * 60 * 1000, // 5분간 fresh
+  });
 
   // 사이드바 상태를 body에 반영
   useEffect(() => {
@@ -23,20 +30,6 @@ export default function Sidebar({ user }) {
       document.body.classList.remove('sidebar-collapsed');
     }
   }, [isCollapsed]);
-
-  const fetchRooms = async () => {
-    try {
-      const res = await fetch('/api/room');
-      const data = await res.json();
-      if (res.ok) {
-        setRooms(data);
-      }
-    } catch (err) {
-      console.error('강의실 목록 조회 실패:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const isActive = (path) => pathname.startsWith(path);
 

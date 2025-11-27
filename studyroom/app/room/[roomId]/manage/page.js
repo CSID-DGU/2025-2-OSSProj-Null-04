@@ -1,29 +1,19 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 export default function ManagePage() {
   const params = useParams();
   const router = useRouter();
   const roomId = params?.roomId;
+  const queryClient = useQueryClient();
 
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [room, setRoom] = useState(null);
-  const [members, setMembers] = useState([]);
-  const [actionLoading, setActionLoading] = useState(null); // 어떤 액션이 진행 중인지
-
-  useEffect(() => {
-    if (!roomId) return;
-    fetchRoomData();
-  }, [roomId]);
-
-  const fetchRoomData = async () => {
-    setLoading(true);
-    setError('');
-
-    try {
+  // 강의실 정보 조회 (useQuery)
+  const { data, isLoading: loading, error } = useQuery({
+    queryKey: ['roomManage', roomId],
+    queryFn: async () => {
       const res = await fetch(`/api/room/${roomId}/manage`, {
         method: 'GET',
         cache: 'no-store',
@@ -33,30 +23,24 @@ export default function ManagePage() {
 
       if (!res.ok) {
         if (res.status === 403) {
-          // 권한이 없으면 파일 페이지로 리다이렉트
           router.push(`/room/${roomId}/file`);
-          return;
+          throw new Error('Forbidden');
         }
         throw new Error(data.error || '강의실 정보를 불러오지 못했습니다.');
       }
 
-      setRoom(data.room);
-      setMembers(data.members || []);
-    } catch (err) {
-      setError(err.message || '강의실 정보를 불러오는 중 오류가 발생했습니다.');
-    } finally {
-      setLoading(false);
-    }
-  };
+      return data;
+    },
+    enabled: !!roomId,
+    staleTime: 60 * 1000, // 1분
+  });
 
-  const handleRoleChange = async (targetUserId, newRole) => {
-    if (!confirm(`해당 멤버의 권한을 "${newRole}"(으)로 변경하시겠습니까?`)) {
-      return;
-    }
+  const room = data?.room;
+  const members = data?.members || [];
 
-    setActionLoading(`role-${targetUserId}`);
-
-    try {
+  // 권한 변경 mutation
+  const changeRoleMutation = useMutation({
+    mutationFn: async ({ targetUserId, newRole }) => {
       const res = await fetch(`/api/room/${roomId}/manage`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -69,23 +53,20 @@ export default function ManagePage() {
         throw new Error(data.error || '권한 변경에 실패했습니다.');
       }
 
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['roomManage', roomId]);
       alert('권한이 변경되었습니다.');
-      fetchRoomData();
-    } catch (err) {
+    },
+    onError: (err) => {
       alert(err.message || '권한 변경 중 오류가 발생했습니다.');
-    } finally {
-      setActionLoading(null);
-    }
-  };
+    },
+  });
 
-  const handleKickMember = async (targetUserId, userName) => {
-    if (!confirm(`"${userName}" 멤버를 강퇴하시겠습니까?`)) {
-      return;
-    }
-
-    setActionLoading(`kick-${targetUserId}`);
-
-    try {
+  // 멤버 강퇴 mutation
+  const kickMemberMutation = useMutation({
+    mutationFn: async (targetUserId) => {
       const res = await fetch(`/api/room/${roomId}/manage?userId=${targetUserId}`, {
         method: 'DELETE',
       });
@@ -96,13 +77,31 @@ export default function ManagePage() {
         throw new Error(data.error || '멤버 강퇴에 실패했습니다.');
       }
 
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['roomManage', roomId]);
       alert('멤버가 강퇴되었습니다.');
-      fetchRoomData();
-    } catch (err) {
+    },
+    onError: (err) => {
       alert(err.message || '멤버 강퇴 중 오류가 발생했습니다.');
-    } finally {
-      setActionLoading(null);
+    },
+  });
+
+  const handleRoleChange = (targetUserId, newRole) => {
+    if (!confirm(`해당 멤버의 권한을 "${newRole}"(으)로 변경하시겠습니까?`)) {
+      return;
     }
+
+    changeRoleMutation.mutate({ targetUserId, newRole });
+  };
+
+  const handleKickMember = (targetUserId, userName) => {
+    if (!confirm(`"${userName}" 멤버를 강퇴하시겠습니까?`)) {
+      return;
+    }
+
+    kickMemberMutation.mutate(targetUserId);
   };
 
   const getRoleLabel = (role) => {
@@ -142,7 +141,7 @@ export default function ManagePage() {
   if (error) {
     return (
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
-        <p className="text-red-600 dark:text-red-400">{error}</p>
+        <p className="text-red-600 dark:text-red-400">{error.message}</p>
       </div>
     );
   }
@@ -216,7 +215,7 @@ export default function ManagePage() {
                     <select
                       value={member.Role}
                       onChange={(e) => handleRoleChange(member.UserID, e.target.value)}
-                      disabled={actionLoading === `role-${member.UserID}`}
+                      disabled={changeRoleMutation.isPending}
                       className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:bg-gray-100 dark:disabled:bg-gray-600"
                     >
                       <option value="member">멤버</option>
@@ -226,10 +225,10 @@ export default function ManagePage() {
                     {/* 강퇴 버튼 */}
                     <button
                       onClick={() => handleKickMember(member.UserID, member.User?.name)}
-                      disabled={actionLoading === `kick-${member.UserID}`}
+                      disabled={kickMemberMutation.isPending}
                       className="px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg disabled:bg-gray-400 disabled:cursor-not-allowed"
                     >
-                      {actionLoading === `kick-${member.UserID}` ? '처리 중...' : '강퇴'}
+                      {kickMemberMutation.isPending ? '처리 중...' : '강퇴'}
                     </button>
                   </div>
                 )}

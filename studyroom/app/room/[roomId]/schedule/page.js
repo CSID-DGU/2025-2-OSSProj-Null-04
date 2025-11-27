@@ -1,109 +1,75 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 export default function SchedulePage() {
   const params = useParams();
   const router = useRouter();
   const roomId = params.roomId;
-
-  const [schedules, setSchedules] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const queryClient = useQueryClient();
 
   // 일정 추가 폼 상태
   const [isAddingSchedule, setIsAddingSchedule] = useState(false);
   const [eventTitle, setEventTitle] = useState('');
   const [eventDate, setEventDate] = useState('');
 
-  // 컴포넌트 마운트 시 일정 로드
-  useEffect(() => {
-    loadSchedules();
-  }, [roomId]);
-
-  // 일정 목록 조회
-  const loadSchedules = async () => {
-    try {
-      setLoading(true);
-      setError('');
-
+  // 일정 목록 조회 (useQuery)
+  const { data: schedules = [], isLoading: loading, error } = useQuery({
+    queryKey: ['schedules', roomId],
+    queryFn: async () => {
       const res = await fetch(`/api/room/${roomId}/schedule`);
 
       if (res.status === 401) {
         router.push('/login');
-        return;
+        throw new Error('Unauthorized');
       }
 
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error);
-        return;
+        throw new Error(data.error || '일정을 불러오는데 실패했습니다');
       }
 
-      setSchedules(data.schedules || []);
-    } catch (err) {
-      console.error('일정 조회 오류:', err);
-      setError('일정을 불러오는데 실패했습니다');
-    } finally {
-      setLoading(false);
-    }
-  };
+      return data.schedules || [];
+    },
+    enabled: !!roomId,
+    staleTime: 2 * 60 * 1000, // 2분
+  });
 
-  // 일정 추가
-  const handleAddSchedule = async (e) => {
-    e.preventDefault();
-
-    if (!eventTitle.trim() || !eventDate) {
-      alert('일정명과 날짜를 모두 입력해주세요');
-      return;
-    }
-
-    try {
-      console.log('일정 추가 요청:', {
-        roomId,
-        eventTitle: eventTitle.trim(),
-        eventDate,
-      });
-
+  // 일정 추가 mutation
+  const addScheduleMutation = useMutation({
+    mutationFn: async ({ eventTitle, eventDate }) => {
       const res = await fetch(`/api/room/${roomId}/schedule`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          eventTitle: eventTitle.trim(),
-          eventDate,
-        }),
+        body: JSON.stringify({ eventTitle, eventDate }),
       });
 
-      console.log('응답 상태:', res.status);
-
       const data = await res.json();
-      console.log('응답 데이터:', data);
 
       if (!res.ok) {
-        alert(`일정 추가 실패: ${data.error}`);
-        return;
+        throw new Error(data.error || '일정 추가에 실패했습니다');
       }
 
-      alert('일정이 추가되었습니다');
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['schedules', roomId]);
       setEventTitle('');
       setEventDate('');
       setIsAddingSchedule(false);
-      loadSchedules(); // 목록 새로고침
-    } catch (err) {
-      console.error('일정 추가 오류:', err);
-      alert(`일정 추가에 실패했습니다: ${err.message}`);
-    }
-  };
+      alert('일정이 추가되었습니다');
+    },
+    onError: (err) => {
+      alert(`일정 추가 실패: ${err.message}`);
+    },
+  });
 
-  // 일정 삭제
-  const handleDeleteSchedule = async (eventId) => {
-    if (!confirm('정말 이 일정을 삭제하시겠습니까?')) {
-      return;
-    }
-
-    try {
+  // 일정 삭제 mutation
+  const deleteScheduleMutation = useMutation({
+    mutationFn: async (eventId) => {
       const res = await fetch(`/api/room/${roomId}/schedule?eventId=${eventId}`, {
         method: 'DELETE',
       });
@@ -111,16 +77,42 @@ export default function SchedulePage() {
       const data = await res.json();
 
       if (!res.ok) {
-        alert(data.error);
-        return;
+        throw new Error(data.error || '일정 삭제에 실패했습니다');
       }
 
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['schedules', roomId]);
       alert('일정이 삭제되었습니다');
-      loadSchedules(); // 목록 새로고침
-    } catch (err) {
-      console.error('일정 삭제 오류:', err);
-      alert('일정 삭제에 실패했습니다');
+    },
+    onError: (err) => {
+      alert(err.message || '일정 삭제에 실패했습니다');
+    },
+  });
+
+  // 일정 추가
+  const handleAddSchedule = (e) => {
+    e.preventDefault();
+
+    if (!eventTitle.trim() || !eventDate) {
+      alert('일정명과 날짜를 모두 입력해주세요');
+      return;
     }
+
+    addScheduleMutation.mutate({
+      eventTitle: eventTitle.trim(),
+      eventDate,
+    });
+  };
+
+  // 일정 삭제
+  const handleDeleteSchedule = (eventId) => {
+    if (!confirm('정말 이 일정을 삭제하시겠습니까?')) {
+      return;
+    }
+
+    deleteScheduleMutation.mutate(eventId);
   };
 
   // D-day 계산
@@ -162,7 +154,7 @@ export default function SchedulePage() {
       {/* 에러 메시지 */}
       {error && (
         <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-          <p className="text-red-600 dark:text-red-400">{error}</p>
+          <p className="text-red-600 dark:text-red-400">{error.message}</p>
         </div>
       )}
 
