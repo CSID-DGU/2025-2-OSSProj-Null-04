@@ -1,36 +1,27 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useParams } from 'next/navigation';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 export default function GroupPage() {
   const params = useParams();
   const roomId = params.roomId;
+  const queryClient = useQueryClient();
 
   // 뷰 상태: 'main' | 'questions' | 'detail' | 'retry'
   const [view, setView] = useState('main');
 
   // 퀴즈 관련 상태
-  const [quizzes, setQuizzes] = useState([]);
   const [selectedQuiz, setSelectedQuiz] = useState(null);
-  const [questions, setQuestions] = useState([]);
   const [selectedQuestion, setSelectedQuestion] = useState(null);
 
-  // 많이 틀린 문제 관련 상태
-  const [wrongQuestions, setWrongQuestions] = useState([]);
-
   // 댓글 관련 상태
-  const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState('');
-  const [currentUser, setCurrentUser] = useState(null);
 
   // 재풀이 모드 관련 상태
   const [selectedAnswer, setSelectedAnswer] = useState(null);
   const [showResult, setShowResult] = useState(false);
-
-  // 로딩 상태
-  const [loading, setLoading] = useState(false);
-  const [wrongQuestionsLoading, setWrongQuestionsLoading] = useState(true);
 
   // AI 챗봇 관련 상태
   const [chatSessionId, setChatSessionId] = useState(null);
@@ -39,9 +30,6 @@ export default function GroupPage() {
   const [chatLoading, setChatLoading] = useState(false);
   const [streamingMessage, setStreamingMessage] = useState('');
   const [chatSessionLoading, setChatSessionLoading] = useState(false);
-
-  // 댓글 로딩 상태
-  const [commentsLoading, setCommentsLoading] = useState(false);
 
   // 리사이저 상태
   const [leftWidth, setLeftWidth] = useState(50); // 왼쪽 섹션 너비 비율 (%)
@@ -54,67 +42,59 @@ export default function GroupPage() {
   const commentEndRef = useRef(null);
   const chatEndRef = useRef(null);
 
-  // 초기 로드: 퀴즈 목록 및 많이 틀린 문제 가져오기
-  useEffect(() => {
-    loadQuizzes();
-    loadWrongQuestions();
-    loadCurrentUser();
-  }, [roomId]);
-
-  // 퀴즈 목록 불러오기
-  const loadQuizzes = async () => {
-    setLoading(true);
-    try {
+  // 퀴즈 목록 조회 (useQuery)
+  const { data: quizzes = [], isLoading: loading } = useQuery({
+    queryKey: ['quizzes', roomId],
+    queryFn: async () => {
       const res = await fetch(`/api/room/${roomId}/quiz`);
       const data = await res.json();
 
-      if (res.ok) {
-        setQuizzes(data.quizzes || []);
-      } else {
-        console.error('퀴즈 조회 실패:', data.error);
+      if (!res.ok) {
+        throw new Error(data.error || '퀴즈 조회 실패');
       }
-    } catch (err) {
-      console.error('퀴즈 조회 오류:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  // 현재 사용자 정보 가져오기
-  const loadCurrentUser = async () => {
-    try {
-      const res = await fetch('/api/user/me');
-      if (res.ok) {
-        const data = await res.json();
-        setCurrentUser(data.user);
-      }
-    } catch (err) {
-      console.error('사용자 정보 조회 오류:', err);
-    }
-  };
+      return data.quizzes || [];
+    },
+    enabled: !!roomId,
+    staleTime: 2 * 60 * 1000, // 2분
+  });
 
-  // 많이 틀린 문제 불러오기
-  const loadWrongQuestions = async () => {
-    setWrongQuestionsLoading(true);
-    try {
+  // 많이 틀린 문제 조회 (useQuery)
+  const { data: wrongQuestions = [], isLoading: wrongQuestionsLoading, refetch: refetchWrongQuestions } = useQuery({
+    queryKey: ['wrongQuestions', roomId],
+    queryFn: async () => {
       const res = await fetch(`/api/room/${roomId}/wrong-questions`);
       const data = await res.json();
 
-      if (res.ok) {
-        setWrongQuestions(data.wrongQuestions || []);
-      } else {
-        console.error('많이 틀린 문제 조회 실패:', data.error);
+      if (!res.ok) {
+        throw new Error(data.error || '많이 틀린 문제 조회 실패');
       }
-    } catch (err) {
-      console.error('많이 틀린 문제 조회 오류:', err);
-    } finally {
-      setWrongQuestionsLoading(false);
-    }
-  };
+
+      return data.wrongQuestions || [];
+    },
+    enabled: !!roomId,
+    staleTime: 60 * 1000, // 1분
+  });
+
+  // 현재 사용자 정보 조회 (useQuery)
+  const { data: currentUser } = useQuery({
+    queryKey: ['currentUser'],
+    queryFn: async () => {
+      const res = await fetch('/api/user/me');
+      if (!res.ok) {
+        throw new Error('사용자 정보 조회 실패');
+      }
+      const data = await res.json();
+      return data.user;
+    },
+    staleTime: 10 * 60 * 1000, // 10분
+  });
+
+  // 문제 목록 상태 (동적 로드)
+  const [questions, setQuestions] = useState([]);
 
   // 퀴즈의 문제 목록 불러오기
   const loadQuestions = async (quizId) => {
-    setLoading(true);
     try {
       const res = await fetch(`/api/quiz/${roomId}/${quizId}`);
       const data = await res.json();
@@ -126,29 +106,28 @@ export default function GroupPage() {
       }
     } catch (err) {
       console.error('문제 조회 오류:', err);
-    } finally {
-      setLoading(false);
     }
   };
 
-  // 문제의 댓글 불러오기
-  const loadComments = async (questionId) => {
-    setCommentsLoading(true);
-    try {
-      const res = await fetch(`/api/question/${questionId}/comments`);
+  // 댓글 조회 (useQuery with polling)
+  const { data: comments = [], isLoading: commentsLoading } = useQuery({
+    queryKey: ['comments', selectedQuestion?.QuestionID],
+    queryFn: async () => {
+      if (!selectedQuestion?.QuestionID) return [];
+
+      const res = await fetch(`/api/question/${selectedQuestion.QuestionID}/comments`);
       const data = await res.json();
 
-      if (res.ok) {
-        setComments(data.comments || []);
-      } else {
-        console.error('댓글 조회 실패:', data.error);
+      if (!res.ok) {
+        throw new Error(data.error || '댓글 조회 실패');
       }
-    } catch (err) {
-      console.error('댓글 조회 오류:', err);
-    } finally {
-      setCommentsLoading(false);
-    }
-  };
+
+      return data.comments || [];
+    },
+    enabled: !!selectedQuestion?.QuestionID,
+    refetchInterval: 3000, // 3초마다 폴링
+    staleTime: 2000, // 2초
+  });
 
   // AI 챗봇 세션 로드
   const loadChatSession = async (questionId) => {
@@ -255,7 +234,35 @@ export default function GroupPage() {
     }
   };
 
-  // 댓글 추가
+  // 댓글 추가 Mutation
+  const addCommentMutation = useMutation({
+    mutationFn: async ({ questionId, comment }) => {
+      const res = await fetch(`/api/question/${questionId}/comments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ comment }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || '댓글 추가 실패');
+      }
+
+      return data;
+    },
+    onSuccess: (data, variables) => {
+      // 댓글 쿼리 무효화하여 즉시 새로고침
+      queryClient.invalidateQueries({ queryKey: ['comments', variables.questionId] });
+      setNewComment('');
+    },
+    onError: (error) => {
+      console.error('댓글 추가 오류:', error);
+      alert(`댓글 추가 실패: ${error.message}`);
+    },
+  });
+
+  // 댓글 추가 핸들러
   const handleAddComment = async (e) => {
     e.preventDefault();
 
@@ -264,51 +271,47 @@ export default function GroupPage() {
       return;
     }
 
-    try {
-      const res = await fetch(`/api/question/${selectedQuestion.QuestionID}/comments`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ comment: newComment }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        alert(`댓글 추가 실패: ${data.error}`);
-        return;
-      }
-
-      setNewComment('');
-      loadComments(selectedQuestion.QuestionID);
-    } catch (err) {
-      console.error('댓글 추가 오류:', err);
-      alert('댓글 추가에 실패했습니다');
-    }
+    addCommentMutation.mutate({
+      questionId: selectedQuestion.QuestionID,
+      comment: newComment,
+    });
   };
 
-  // 댓글 삭제
-  const handleDeleteComment = async (commentId) => {
-    if (!confirm('정말 이 댓글을 삭제하시겠습니까?')) {
-      return;
-    }
-
-    try {
-      const res = await fetch(`/api/question/${selectedQuestion.QuestionID}/comments?commentId=${commentId}`, {
+  // 댓글 삭제 Mutation
+  const deleteCommentMutation = useMutation({
+    mutationFn: async ({ questionId, commentId }) => {
+      const res = await fetch(`/api/question/${questionId}/comments?commentId=${commentId}`, {
         method: 'DELETE',
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        alert(`댓글 삭제 실패: ${data.error}`);
-        return;
+        throw new Error(data.error || '댓글 삭제 실패');
       }
 
-      loadComments(selectedQuestion.QuestionID);
-    } catch (err) {
-      console.error('댓글 삭제 오류:', err);
-      alert('댓글 삭제에 실패했습니다');
+      return data;
+    },
+    onSuccess: (data, variables) => {
+      // 댓글 쿼리 무효화하여 즉시 새로고침
+      queryClient.invalidateQueries({ queryKey: ['comments', variables.questionId] });
+    },
+    onError: (error) => {
+      console.error('댓글 삭제 오류:', error);
+      alert(`댓글 삭제 실패: ${error.message}`);
+    },
+  });
+
+  // 댓글 삭제 핸들러
+  const handleDeleteComment = async (commentId) => {
+    if (!confirm('정말 이 댓글을 삭제하시겠습니까?')) {
+      return;
     }
+
+    deleteCommentMutation.mutate({
+      questionId: selectedQuestion.QuestionID,
+      commentId,
+    });
   };
 
   // 퀴즈 클릭 핸들러
@@ -321,7 +324,6 @@ export default function GroupPage() {
   // 문제 클릭 핸들러
   const handleQuestionClick = (question) => {
     setSelectedQuestion(question);
-    loadComments(question.QuestionID);
     loadChatSession(question.QuestionID);
     setChatMessages([]);
     setStreamingMessage('');
@@ -341,7 +343,6 @@ export default function GroupPage() {
     if (view === 'detail') {
       setView('questions');
       setSelectedQuestion(null);
-      setComments([]);
       setNewComment('');
       // 채팅 상태 초기화
       setChatSessionId(null);
@@ -389,7 +390,7 @@ export default function GroupPage() {
         // 정답을 맞췄다면 많이 틀린 문제 목록 새로고침
         if (data.isCorrect) {
           setTimeout(() => {
-            loadWrongQuestions();
+            refetchWrongQuestions();
           }, 1000);
         }
       } else {
@@ -743,11 +744,10 @@ export default function GroupPage() {
                   return (
                     <div
                       key={option}
-                      className={`p-2.5 rounded-lg border-2 text-sm ${
-                        isCorrect
-                          ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
-                          : 'border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700'
-                      }`}
+                      className={`p-2.5 rounded-lg border-2 text-sm ${isCorrect
+                        ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
+                        : 'border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700'
+                        }`}
                     >
                       <span className="font-semibold text-gray-900 dark:text-white mr-2">
                         {option}.
@@ -835,11 +835,10 @@ export default function GroupPage() {
                         </div>
                         {/* 말풍선 */}
                         <div
-                          className={`p-2.5 rounded-lg text-sm ${
-                            isMyComment
-                              ? 'bg-primary-600 text-white'
-                              : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white'
-                          }`}
+                          className={`p-2.5 rounded-lg text-sm ${isMyComment
+                            ? 'bg-primary-600 text-white'
+                            : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white'
+                            }`}
                         >
                           <p className="whitespace-pre-wrap">{comment.Comment}</p>
                         </div>
@@ -914,11 +913,10 @@ export default function GroupPage() {
                     className={`flex ${msg.sender === 'User' ? 'justify-end' : 'justify-start'}`}
                   >
                     <div
-                      className={`max-w-[85%] p-2.5 rounded-lg ${
-                        msg.sender === 'User'
-                          ? 'bg-primary-600 text-white'
-                          : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white'
-                      }`}
+                      className={`max-w-[85%] p-2.5 rounded-lg ${msg.sender === 'User'
+                        ? 'bg-primary-600 text-white'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white'
+                        }`}
                     >
                       <p className="whitespace-pre-wrap text-sm">{msg.message}</p>
                     </div>
@@ -976,7 +974,6 @@ export default function GroupPage() {
 
   // 문제 토론하기 핸들러 (재풀이 후 상세 화면으로 이동)
   const handleGoToDiscussion = () => {
-    loadComments(selectedQuestion.QuestionID);
     loadChatSession(selectedQuestion.QuestionID);
     setChatMessages([]);
     setStreamingMessage('');
@@ -1045,9 +1042,8 @@ export default function GroupPage() {
                   <div
                     key={option}
                     onClick={() => handleAnswerSelect(option)}
-                    className={`p-4 rounded-lg border-2 ${bgClass} ${
-                      !showResult ? 'cursor-pointer hover:border-primary-400' : 'cursor-default'
-                    } transition-colors`}
+                    className={`p-4 rounded-lg border-2 ${bgClass} ${!showResult ? 'cursor-pointer hover:border-primary-400' : 'cursor-default'
+                      } transition-colors`}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex-1">
@@ -1085,16 +1081,14 @@ export default function GroupPage() {
             {showResult && (
               <div className="space-y-4 mt-6">
                 {/* 결과 표시 */}
-                <div className={`p-4 rounded-lg border-l-4 ${
-                  isCorrect
-                    ? 'bg-green-50 dark:bg-green-900/20 border-green-500'
-                    : 'bg-red-50 dark:bg-red-900/20 border-red-500'
-                }`}>
-                  <p className={`font-semibold text-lg ${
-                    isCorrect
-                      ? 'text-green-900 dark:text-green-300'
-                      : 'text-red-900 dark:text-red-300'
+                <div className={`p-4 rounded-lg border-l-4 ${isCorrect
+                  ? 'bg-green-50 dark:bg-green-900/20 border-green-500'
+                  : 'bg-red-50 dark:bg-red-900/20 border-red-500'
                   }`}>
+                  <p className={`font-semibold text-lg ${isCorrect
+                    ? 'text-green-900 dark:text-green-300'
+                    : 'text-red-900 dark:text-red-300'
+                    }`}>
                     {isCorrect ? '정답입니다!' : '오답입니다.'}
                   </p>
                   {isWrong && (

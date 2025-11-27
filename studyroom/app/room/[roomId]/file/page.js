@@ -1,26 +1,20 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useParams } from 'next/navigation';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 export default function FilePage() {
   const params = useParams();
   const roomId = params?.roomId;
+  const queryClient = useQueryClient();
   const [selectedFile, setSelectedFile] = useState(null);
-  const [status, setStatus] = useState({ type: 'idle', message: '' });
-  const [files, setFiles] = useState([]);
-  const [filesLoading, setFilesLoading] = useState(true);
-  const [filesError, setFilesError] = useState('');
-  const [deleteError, setDeleteError] = useState('');
+  const [uploadError, setUploadError] = useState('');
 
-  const fetchFiles = useCallback(async () => {
-    if (!roomId) return;
-
-    setFilesLoading(true);
-    setFilesError('');
-    setDeleteError('');
-
-    try {
+  // 파일 목록 조회 (useQuery)
+  const { data: files = [], isLoading: filesLoading, error: filesError } = useQuery({
+    queryKey: ['files', roomId],
+    queryFn: async () => {
       const res = await fetch(`/api/room/${roomId}/file`, {
         method: 'GET',
         cache: 'no-store',
@@ -31,32 +25,15 @@ export default function FilePage() {
         throw new Error(data.error || '파일 목록을 불러오지 못했습니다.');
       }
 
-      setFiles(Array.isArray(data.files) ? data.files : []);
-    } catch (error) {
-      setFilesError(error.message || '파일 목록을 불러오는 중 오류가 발생했습니다.');
-    } finally {
-      setFilesLoading(false);
-    }
-  }, [roomId]);
+      return Array.isArray(data.files) ? data.files : [];
+    },
+    enabled: !!roomId,
+    staleTime: 60 * 1000, // 1분
+  });
 
-  useEffect(() => {
-    fetchFiles();
-  }, [fetchFiles]);
-
-  const handleUpload = async (event) => {
-    event.preventDefault();
-
-    if (!selectedFile || !roomId) {
-      setStatus({ type: 'error', message: '업로드할 파일을 선택해주세요.' });
-      return;
-    }
-
-    try {
-      setStatus({ type: 'loading', message: '업로드 중입니다...' });
-
-      const formData = new FormData();
-      formData.append('file', selectedFile);
-
+  // 파일 업로드 mutation
+  const uploadMutation = useMutation({
+    mutationFn: async (formData) => {
       const res = await fetch(`/api/room/${roomId}/file`, {
         method: 'POST',
         body: formData,
@@ -68,15 +45,48 @@ export default function FilePage() {
         throw new Error(data.error || '업로드에 실패했습니다.');
       }
 
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['files', roomId]);
       setSelectedFile(null);
-      setStatus({ type: 'success', message: '파일 업로드가 완료되었습니다.' });
-      fetchFiles();
-    } catch (error) {
-      setStatus({
-        type: 'error',
-        message: error.message || '파일 업로드 중 오류가 발생했습니다.',
+      setUploadError('');
+    },
+    onError: (error) => {
+      setUploadError(error.message || '파일 업로드 중 오류가 발생했습니다.');
+    },
+  });
+
+  // 파일 삭제 mutation
+  const deleteMutation = useMutation({
+    mutationFn: async (fileId) => {
+      const res = await fetch(`/api/room/${roomId}/file/${fileId}`, {
+        method: 'DELETE',
       });
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || '삭제에 실패했습니다.');
+      }
+
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['files', roomId]);
+    },
+  });
+
+  const handleUpload = async (event) => {
+    event.preventDefault();
+
+    if (!selectedFile || !roomId) {
+      setUploadError('업로드할 파일을 선택해주세요.');
+      return;
     }
+
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+    uploadMutation.mutate(formData);
   };
 
   return (
@@ -100,26 +110,24 @@ export default function FilePage() {
           />
         </div>
 
-        {status.type !== 'idle' && (
-          <div
-            className={`text-sm ${
-              status.type === 'error'
-                ? 'text-red-600 dark:text-red-400'
-                : status.type === 'success'
-                  ? 'text-green-600 dark:text-green-400'
-                  : 'text-gray-600 dark:text-gray-300'
-            }`}
-          >
-            {status.message}
+        {uploadMutation.isSuccess && (
+          <div className="text-sm text-green-600 dark:text-green-400">
+            파일 업로드가 완료되었습니다.
+          </div>
+        )}
+
+        {uploadError && (
+          <div className="text-sm text-red-600 dark:text-red-400">
+            {uploadError}
           </div>
         )}
 
         <button
           type="submit"
-          disabled={status.type === 'loading'}
+          disabled={uploadMutation.isPending}
           className="inline-flex items-center justify-center rounded-lg bg-primary-600 px-4 py-2 font-semibold text-white hover:bg-primary-700 disabled:bg-gray-400 disabled:text-gray-200"
         >
-          {status.type === 'loading' ? '업로드 중...' : '업로드'}
+          {uploadMutation.isPending ? '업로드 중...' : '업로드'}
         </button>
       </form>
 
@@ -133,7 +141,7 @@ export default function FilePage() {
         )}
 
         {filesError && (
-          <p className="text-sm text-red-600 dark:text-red-400">{filesError}</p>
+          <p className="text-sm text-red-600 dark:text-red-400">{filesError.message}</p>
         )}
 
         {!filesLoading && !filesError && files.length === 0 && (
@@ -142,8 +150,10 @@ export default function FilePage() {
           </p>
         )}
 
-        {deleteError && (
-          <p className="text-sm text-red-600 dark:text-red-400">{deleteError}</p>
+        {deleteMutation.isError && (
+          <p className="text-sm text-red-600 dark:text-red-400">
+            {deleteMutation.error.message || '파일 삭제 중 오류가 발생했습니다.'}
+          </p>
         )}
 
         {!filesLoading && files.length > 0 && (
@@ -169,25 +179,9 @@ export default function FilePage() {
                   </a>
                   <button
                     type="button"
-                    onClick={async () => {
-                      setDeleteError('');
-                      try {
-                        const res = await fetch(
-                          `/api/room/${roomId}/file/${file.FileID}`,
-                          { method: 'DELETE' }
-                        );
-                        const data = await res.json();
-
-                        if (!res.ok) {
-                          throw new Error(data.error || '삭제에 실패했습니다.');
-                        }
-
-                        fetchFiles();
-                      } catch (error) {
-                        setDeleteError(error.message || '파일 삭제 중 오류가 발생했습니다.');
-                      }
-                    }}
-                    className="text-sm text-red-600 hover:underline cursor-pointer bg-transparent p-0"
+                    onClick={() => deleteMutation.mutate(file.FileID)}
+                    disabled={deleteMutation.isPending}
+                    className="text-sm text-red-600 hover:underline cursor-pointer bg-transparent p-0 disabled:opacity-50"
                   >
                     삭제
                   </button>

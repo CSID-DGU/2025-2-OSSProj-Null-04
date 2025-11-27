@@ -3,43 +3,49 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 export default function CreateRoomPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [formData, setFormData] = useState({
     roomName: '',
     roomPassword: ''
   });
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+
+  // 강의실 생성 mutation
+  const createRoomMutation = useMutation({
+    mutationFn: async (data) => {
+      const res = await fetch('/api/room', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error);
+      }
+
+      return res.json();
+    },
+    onSuccess: (data) => {
+      // 사이드바 강의실 목록 캐시 무효화 (자동 새로고침)
+      queryClient.invalidateQueries(['rooms']);
+
+      alert(`강의실이 생성되었습니다!\n참여 PIN: ${data.room.EnterPin}\n\n이 PIN을 다른 사람과 공유하세요.`);
+      router.push(`/room/${data.room.RoomID}/file`);
+    },
+    onError: (err) => {
+      setError(err.message || '강의실 생성 중 오류가 발생했습니다');
+    }
+  });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    setLoading(true);
-
-    try {
-      const res = await fetch('/api/room', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.error);
-        return;
-      }
-
-      // 생성 성공 -> 해당 강의실 파일 페이지로 이동
-      alert(`강의실이 생성되었습니다!\n참여 PIN: ${data.room.EnterPin}\n\n이 PIN을 다른 사람과 공유하세요.`);
-      router.push(`/room/${data.room.RoomID}/file`);
-    } catch (err) {
-      setError('강의실 생성 중 오류가 발생했습니다');
-    } finally {
-      setLoading(false);
-    }
+    createRoomMutation.mutate(formData);
   };
 
   return (
@@ -115,10 +121,10 @@ export default function CreateRoomPage() {
               <div className="flex gap-4">
                 <button
                   type="submit"
-                  disabled={loading}
+                  disabled={createRoomMutation.isPending}
                   className="flex-1 bg-primary-600 text-white py-3 rounded-lg hover:bg-primary-700 disabled:bg-gray-400 transition-colors font-medium"
                 >
-                  {loading ? '생성 중...' : '강의실 생성'}
+                  {createRoomMutation.isPending ? '생성 중...' : '강의실 생성'}
                 </button>
                 <button
                   type="button"

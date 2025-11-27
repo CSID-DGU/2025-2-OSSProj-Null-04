@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 export default function CreateQuizPage() {
   const router = useRouter();
   const params = useParams();
   const roomId = params.roomId;
+  const queryClient = useQueryClient();
 
   // 기본 설정
   const [quizTitle, setQuizTitle] = useState('');
@@ -33,12 +35,49 @@ export default function CreateQuizPage() {
 
   // 로딩 상태
   const [generating, setGenerating] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
   // 진행바 상태
   const [progress, setProgress] = useState(0);
   const [progressMessage, setProgressMessage] = useState('');
+
+  // 퀴즈 저장 mutation
+  const saveQuizMutation = useMutation({
+    mutationFn: async ({ quizTitle, questions, fileIds }) => {
+      const res = await fetch('/api/quiz/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          roomId,
+          quizTitle,
+          questions,
+          fileIds
+        })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || '퀴즈 저장에 실패했습니다');
+      }
+
+      return data;
+    },
+    onSuccess: () => {
+      // 퀴즈 목록 캐시 무효화 (자동 새로고침)
+      queryClient.invalidateQueries(['quizzes', roomId]);
+
+      // 0.3초 후 퀴즈 목록으로 이동
+      setTimeout(() => {
+        router.push(`/room/${roomId}/quiz`);
+      }, 300);
+    },
+    onError: (err) => {
+      setError(err.message);
+      setProgress(0);
+      setProgressMessage('');
+    }
+  });
 
   useEffect(() => {
     fetchFiles();
@@ -127,7 +166,11 @@ export default function CreateQuizPage() {
       const allQuestions = [...questions, ...data.questions];
 
       // 퀴즈 저장
-      await saveQuiz(allQuestions, progressInterval);
+      saveQuizMutation.mutate({
+        quizTitle,
+        questions: allQuestions,
+        fileIds: selectedFiles
+      });
 
     } catch (err) {
       setError(err.message);
@@ -240,7 +283,7 @@ export default function CreateQuizPage() {
     }
   };
 
-  const handleSaveManualQuiz = async () => {
+  const handleSaveManualQuiz = () => {
     if (!quizTitle.trim()) {
       alert('퀴즈 제목을 입력해주세요');
       return;
@@ -251,42 +294,11 @@ export default function CreateQuizPage() {
       return;
     }
 
-    await saveQuiz(questions);
-  };
-
-  const saveQuiz = async (questionsToSave) => {
-    try {
-      setSaving(true);
-
-      const res = await fetch('/api/quiz/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          roomId,
-          quizTitle,
-          questions: questionsToSave,
-          fileIds: selectedFiles
-        })
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || '퀴즈 저장에 실패했습니다');
-      }
-
-      // 0.3초 후 퀴즈 목록으로 이동
-      setTimeout(() => {
-        router.push(`/room/${roomId}/quiz`);
-      }, 300);
-
-    } catch (err) {
-      setError(err.message);
-      setProgress(0);
-      setProgressMessage('');
-    } finally {
-      setSaving(false);
-    }
+    saveQuizMutation.mutate({
+      quizTitle,
+      questions,
+      fileIds: selectedFiles
+    });
   };
 
   // 초기 설정 화면
@@ -586,10 +598,10 @@ export default function CreateQuizPage() {
         </button>
         <button
           onClick={handleSaveManualQuiz}
-          disabled={saving || questions.length === 0}
+          disabled={saveQuizMutation.isPending || questions.length === 0}
           className="flex-1 bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-6 py-3 rounded-lg font-medium transition-colors"
         >
-          {saving ? '저장 중...' : '퀴즈 저장'}
+          {saveQuizMutation.isPending ? '저장 중...' : '퀴즈 저장'}
         </button>
       </div>
 

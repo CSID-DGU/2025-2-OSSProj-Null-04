@@ -1,25 +1,17 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
 
 export default function QuizPage() {
   const router = useRouter();
   const params = useParams();
   const roomId = params.roomId;
 
-  const [quizzes, setQuizzes] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-
-  // 퀴즈 목록 가져오기
-  useEffect(() => {
-    fetchQuizzes();
-  }, [roomId]);
-
-  const fetchQuizzes = async () => {
-    try {
-      setLoading(true);
+  // 퀴즈 목록 조회 (useQuery)
+  const { data: quizzes = [], isLoading: loading, error } = useQuery({
+    queryKey: ['quizzes', roomId],
+    queryFn: async () => {
       const res = await fetch(`/api/quiz/${roomId}`);
       const data = await res.json();
 
@@ -27,13 +19,11 @@ export default function QuizPage() {
         throw new Error(data.error || '퀴즈 목록을 불러오는데 실패했습니다');
       }
 
-      setQuizzes(data.quizzes);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+      return data.quizzes;
+    },
+    enabled: !!roomId,
+    staleTime: 2 * 60 * 1000, // 2분
+  });
 
   const handleCreateQuiz = () => {
     router.push(`/room/${roomId}/quiz/create`);
@@ -61,7 +51,7 @@ export default function QuizPage() {
       {/* 에러 메시지 */}
       {error && (
         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg mb-6">
-          {error}
+          {error.message}
         </div>
       )}
 
