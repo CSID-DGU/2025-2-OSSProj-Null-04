@@ -16,6 +16,7 @@
     "@tanstack/react-query": "^5.90.11",
     "bcrypt": "^6.0.0",
     "jsonwebtoken": "^9.0.2",
+    "mammoth": "^1.11.0",
     "next": "15.5.4",
     "openai": "^6.9.1",
     "react": "19.1.0",

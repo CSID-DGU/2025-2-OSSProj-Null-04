@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import OpenAI from 'openai';
 import { Storage } from '@google-cloud/storage';
 import { ImageAnnotatorClient } from '@google-cloud/vision';
+import mammoth from 'mammoth';
 import { getSupabaseServiceClient } from '@/lib/supabase/service';
 
 const EMBEDDING_MODEL = 'text-embedding-3-small';
@@ -121,6 +122,16 @@ async function extractTextWithVision(buffer, mimeType) {
   return normalizeText(text);
 }
 
+async function extractWordTextWithMammoth(buffer) {
+  try {
+    const result = await mammoth.extractRawText({ buffer });
+    return normalizeText(result?.value || '');
+  } catch (error) {
+    console.error('Mammoth docx parsing failed:', error);
+    return '';
+  }
+}
+
 async function extractPdfTextWithVisionAsync(buffer, mimeType = 'application/pdf') {
   const bucketName = process.env.GOOGLE_OCR_GCS_BUCKET;
   if (!bucketName) {
@@ -217,6 +228,23 @@ async function extractPdfTextWithVisionAsync(buffer, mimeType = 'application/pdf
 }
 
 async function extractTextFromFile(buffer, fileType, mimeType = '') {
+  if (fileType === FILE_TYPES.WORD) {
+    const wordText = await extractWordTextWithMammoth(buffer);
+    if (wordText) {
+      return wordText;
+    }
+
+    const ocrText = await extractTextWithVision(
+      buffer,
+      mimeType || 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    );
+    if (ocrText) {
+      return ocrText;
+    }
+
+    throw new Error('Word 파일에서 텍스트를 추출할 수 없습니다');
+  }
+
   if (fileType === FILE_TYPES.PDF) {
     const ocrText = await extractPdfTextWithVisionAsync(buffer, mimeType || 'application/pdf');
     if (ocrText) {
