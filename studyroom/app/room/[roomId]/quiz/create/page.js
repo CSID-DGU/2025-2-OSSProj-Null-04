@@ -305,21 +305,21 @@ export default function CreateQuizPage() {
   // 초기 설정 화면
   if (creationMode === null) {
     return (
-      <div className="p-6 max-w-4xl mx-auto">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">
+      <div className="p-5 max-w-5xl mx-auto">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-5">
           퀴즈 생성
         </h1>
 
         {/* 에러 메시지 */}
         {error && (
-          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg mb-6">
+          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg mb-5">
             {error}
           </div>
         )}
 
         {/* 진행바 */}
         {generating && progress > 0 && (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-6">
+          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-5 mb-5">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 text-center">
               AI 퀴즈 생성 중...
             </h2>
@@ -342,7 +342,7 @@ export default function CreateQuizPage() {
           </div>
         )}
 
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 space-y-6">
+        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-5 space-y-5">
           {/* 퀴즈 제목 */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -463,21 +463,21 @@ export default function CreateQuizPage() {
 
   // 수동 문제 추가 화면
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">
+    <div className="p-5 max-w-5xl mx-auto">
+      <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-5">
         퀴즈 생성: {quizTitle}
       </h1>
 
       {/* 에러 메시지 */}
       {error && (
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg mb-6">
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg mb-5">
           {error}
         </div>
       )}
 
       {/* 진행바 */}
       {generating && progress > 0 && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-6">
+        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-5 mb-5">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 text-center">
             AI 퀴즈 생성 중...
           </h2>
@@ -501,12 +501,12 @@ export default function CreateQuizPage() {
       )}
 
       {/* 진행 상황 */}
-      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400 px-4 py-3 rounded-lg mb-6">
+      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400 px-4 py-3 rounded-lg mb-5">
         현재 {questions.length}개 문제 추가됨 (목표: {questionCount}개)
       </div>
 
       {/* 문제 입력 폼 */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 space-y-4 mb-6">
+      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-5 space-y-4 mb-5">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
           문제 {questions.length + 1} 입력
         </h2>

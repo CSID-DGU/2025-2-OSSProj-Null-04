@@ -148,8 +148,8 @@ export default function TakeQuizPage() {
   // 퀴즈 완료 화면
   if (quizCompleted && finalScore) {
     return (
-      <div className="p-6 max-w-2xl mx-auto">
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8 text-center">
+      <div className="p-5 max-w-5xl mx-auto">
+        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-8 text-center">
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
             퀴즈 완료!
           </h2>
@@ -179,9 +179,9 @@ export default function TakeQuizPage() {
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div className="p-5 max-w-5xl mx-auto">
       {/* 헤더 */}
-      <div className="mb-6">
+      <div className="mb-5">
         <button
           onClick={handleBackToQuizList}
           className="text-primary-600 hover:text-primary-700 mb-4"
@@ -197,7 +197,7 @@ export default function TakeQuizPage() {
       </div>
 
       {/* 문제 카드 */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-6">
+      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-5 mb-5">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">
           {currentQuestion.question}
         </h2>
@@ -249,8 +249,8 @@ export default function TakeQuizPage() {
         {/* 정답/오답 메시지 */}
         {showResult && (
           <div className={`mt-6 p-4 rounded-lg ${isCorrect
-              ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800'
-              : 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800'
+            ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800'
+            : 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800'
             }`}>
             <p className={`font-semibold mb-2 ${isCorrect ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'
               }`}>

@@ -22,12 +22,12 @@ export default function RoomNavBar({ roomId, userRole }) {
 
   return (
     <nav className="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-      <div className="flex gap-1 px-6">
+      <div className="flex gap-1 px-4">
         {tabs.map((tab) => (
           <Link
             key={tab.path}
             href={tab.path}
-            className={`px-6 py-4 font-medium border-b-2 transition-colors ${
+            className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
               isActive(tab.path)
                 ? 'border-primary-600 text-primary-600'
                 : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:border-gray-300'

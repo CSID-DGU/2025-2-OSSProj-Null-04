@@ -6,7 +6,19 @@
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 
-  /* Primary 메인 컬러 (파란색 계열) - 여기만 수정하면 전체 사이트 메인 컬러 변경 */
+  /* Neutral 중립 색상 (회색 계열) - Minimalism 베이스 */
+  --color-neutral-50: #fafafa;
+  --color-neutral-100: #f5f5f5;
+  --color-neutral-200: #e5e5e5;
+  --color-neutral-300: #d4d4d4;
+  --color-neutral-400: #a3a3a3;
+  --color-neutral-500: #737373;
+  --color-neutral-600: #525252;
+  --color-neutral-700: #404040;
+  --color-neutral-800: #262626;
+  --color-neutral-900: #171717;
+
+  /* Primary 메인 컬러 (파란색 계열) - 악센트 용도만 */
   --color-primary-100: #e0f2fe;  /* 연한 배경 */
   --color-primary-200: #bae6fd;
   --color-primary-300: #7dd3fc;
@@ -21,12 +33,24 @@
 @media (prefers-color-scheme: dark) {
   :root {
     --color-background: #0a0a0a;
-    --color-foreground: #ededed;
+    --color-foreground: #fafafa;
+
+    /* 다크모드에서 Neutral 색상 반전 */
+    --color-neutral-50: #0a0a0a;
+    --color-neutral-100: #171717;
+    --color-neutral-200: #262626;
+    --color-neutral-300: #404040;
+    --color-neutral-400: #525252;
+    --color-neutral-500: #737373;
+    --color-neutral-600: #a3a3a3;
+    --color-neutral-700: #d4d4d4;
+    --color-neutral-800: #e5e5e5;
+    --color-neutral-900: #fafafa;
 
     /* 다크모드에서 Primary 색상 조정 (더 밝게) */
     --color-primary-100: #172554;  /* 다크모드 배경 (어둡게) */
-    --color-primary-600: #60a5fa;  /* 다크모드에서는 더 밝은 파란색 */
-    --color-primary-700: #3b82f6;
+    --color-primary-600: #38bdf8;  /* 다크모드에서는 더 밝은 파란색 */
+    --color-primary-700: #0ea5e9;
   }
 }
 
@@ -38,7 +62,7 @@ body {
 
 /* 사이드바가 있는 페이지의 메인 콘텐츠 margin 조정 */
 .sidebar-expanded-content {
-  margin-left: 16rem; /* ml-64 = 256px = 16rem */
+  margin-left: 14rem; /* ml-56 = 224px = 14rem (기존 16rem에서 축소) */
   transition: margin-left 300ms;
 }
 
@@ -87,4 +111,65 @@ body.sidebar-collapsed .sidebar-expanded-content {
   * {
     scrollbar-color: #4b5563 transparent;
   }
+}
+
+/* NProgress 커스텀 스타일 */
+#nprogress {
+  pointer-events: none;
+}
+
+#nprogress .bar {
+  background: #0284c7;
+  position: fixed;
+  z-index: 9999;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 3px;
+}
+
+#nprogress .peg {
+  display: block;
+  position: absolute;
+  right: 0px;
+  width: 100px;
+  height: 100%;
+  box-shadow: 0 0 10px #0284c7, 0 0 5px #0284c7;
+  opacity: 1.0;
+  transform: rotate(3deg) translate(0px, -4px);
+}
+
+@media (prefers-color-scheme: dark) {
+  #nprogress .bar {
+    background: #38bdf8;
+  }
+  
+  #nprogress .peg {
+    box-shadow: 0 0 10px #38bdf8, 0 0 5px #38bdf8;
+  }
+}
+
+/* 페이지 전환 애니메이션 */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.page-transition {
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* 링크 호버 효과 개선 */
+a {
+  transition: color 0.15s ease-in-out, background-color 0.15s ease-in-out, border-color 0.15s ease-in-out;
+}
+
+button {
+  transition: all 0.15s ease-in-out;
 }

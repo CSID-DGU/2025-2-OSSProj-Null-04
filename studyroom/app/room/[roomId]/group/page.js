@@ -421,6 +421,7 @@ export default function GroupPage() {
   const formatTime = (timestamp) => {
     const date = new Date(timestamp);
     return date.toLocaleDateString('ko-KR', {
+      timeZone: 'Asia/Seoul',
       month: 'short',
       day: 'numeric',
       hour: '2-digit',
@@ -480,7 +481,7 @@ export default function GroupPage() {
     return (
       <div className="h-[calc(100vh-12rem)] flex gap-6 transition-all duration-300">
         {/* 왼쪽: 많이 틀린 문제 */}
-        <div className="w-1/2 bg-white dark:bg-gray-800 rounded-xl shadow-lg flex flex-col transition-all duration-300 hover:shadow-xl">
+        <div className="w-1/2 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 flex flex-col transition-all duration-300 hover:border-gray-300 dark:hover:border-gray-600">
           <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700">
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-red-500"></div>
@@ -578,7 +579,7 @@ export default function GroupPage() {
         </div>
 
         {/* 오른쪽: 퀴즈 리스트 */}
-        <div className="w-1/2 bg-white dark:bg-gray-800 rounded-xl shadow-lg flex flex-col transition-all duration-300 hover:shadow-xl">
+        <div className="w-1/2 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 flex flex-col transition-all duration-300 hover:border-gray-300 dark:hover:border-gray-600">
           <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700">
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-primary-500"></div>
@@ -645,7 +646,7 @@ export default function GroupPage() {
   if (view === 'questions') {
     return (
       <div className="h-[calc(100vh-12rem)] transition-all duration-300">
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg h-full flex flex-col transition-all duration-300">
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 h-full flex flex-col transition-all duration-300">
           {/* 헤더 */}
           <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700">
             <div className="flex items-center gap-3">
@@ -721,7 +722,7 @@ export default function GroupPage() {
         {/* 왼쪽 섹션 */}
         <div ref={leftSectionRef} className="flex flex-col" style={{ width: `${leftWidth}%` }}>
           {/* 상단: 문제 및 보기 */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg flex flex-col" style={{ height: `${questionHeight}%` }}>
+          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 flex flex-col" style={{ height: `${questionHeight}%` }}>
             <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-200 dark:border-gray-700">
               <button
                 onClick={handleBack}
@@ -794,7 +795,7 @@ export default function GroupPage() {
           </div>
 
           {/* 하단: 댓글 */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg flex flex-col flex-1 min-h-0">
+          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 flex flex-col flex-1 min-h-0">
             <div className="px-3 py-2 border-b border-gray-200 dark:border-gray-700">
               <h2 className="text-base font-semibold text-gray-900 dark:text-white">
                 댓글
@@ -888,7 +889,7 @@ export default function GroupPage() {
         </div>
 
         {/* 오른쪽: AI 챗봇 */}
-        <div className="flex-1 bg-white dark:bg-gray-800 rounded-lg shadow-lg flex flex-col">
+        <div className="flex-1 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 flex flex-col">
           <div className="px-3 py-2 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
             <h2 className="text-base font-semibold text-gray-900 dark:text-white">
               AI 학습 도우미
@@ -995,7 +996,7 @@ export default function GroupPage() {
 
     return (
       <div className="h-[calc(100vh-12rem)]">
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg h-full flex flex-col">
+        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 h-full flex flex-col">
           {/* 헤더 */}
           <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700">
             <div className="flex items-center gap-3">
