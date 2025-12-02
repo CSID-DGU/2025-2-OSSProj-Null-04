@@ -137,15 +137,20 @@ export default function SchedulePage() {
   };
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 transition-all duration-300">
+    <div className="max-w-5xl mx-auto">
       {/* 헤더 */}
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">
-          일정 관리
-        </h2>
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+            일정 관리
+          </h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            강의실 일정을 등록하고 관리할 수 있어요.
+          </p>
+        </div>
         <button
           onClick={() => setIsAddingSchedule(!isAddingSchedule)}
-          className="px-4 py-2 bg-primary-600 text-white font-semibold rounded-lg hover:bg-primary-700 transition-colors"
+          className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm font-medium"
         >
           {isAddingSchedule ? '취소' : '+ 일정 추가'}
         </button>
@@ -153,63 +158,89 @@ export default function SchedulePage() {
 
       {/* 에러 메시지 */}
       {error && (
-        <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-          <p className="text-red-600 dark:text-red-400">{error.message}</p>
+        <div className="mb-5 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+          <p className="text-sm text-red-600 dark:text-red-400">{error.message}</p>
         </div>
       )}
 
       {/* 일정 추가 폼 */}
       {isAddingSchedule && (
-        <form onSubmit={handleAddSchedule} className="mb-6 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                일정명
-              </label>
-              <input
-                type="text"
-                value={eventTitle}
-                onChange={(e) => setEventTitle(e.target.value)}
-                placeholder="예: 중간고사"
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                required
-              />
+        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-5 mb-5">
+          <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4">
+            새 일정 추가
+          </h3>
+          <form onSubmit={handleAddSchedule} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  일정명
+                </label>
+                <input
+                  type="text"
+                  value={eventTitle}
+                  onChange={(e) => setEventTitle(e.target.value)}
+                  placeholder="예: 중간고사"
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  날짜
+                </label>
+                <input
+                  type="date"
+                  value={eventDate}
+                  onChange={(e) => setEventDate(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+                  required
+                />
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                날짜
-              </label>
-              <input
-                type="date"
-                value={eventDate}
-                onChange={(e) => setEventDate(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                required
-              />
+            <div className="flex justify-end">
+              <button
+                type="submit"
+                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm font-medium"
+              >
+                추가
+              </button>
             </div>
-          </div>
-          <div className="mt-4 flex justify-end">
-            <button
-              type="submit"
-              className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              추가
-            </button>
-          </div>
-        </form>
+          </form>
+        </div>
       )}
 
       {/* 로딩 중 */}
       {loading ? (
-        <div className="text-center py-12 text-gray-600 dark:text-gray-400 animate-pulse">
-          <div className="inline-block w-10 h-10 border-4 border-primary-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-          <p className="text-lg font-medium">일정을 불러오는 중...</p>
+        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-12">
+          <div className="text-center">
+            <div className="inline-block w-8 h-8 border-4 border-primary-600 border-t-transparent rounded-full animate-spin mb-3"></div>
+            <p className="text-sm text-gray-600 dark:text-gray-400">일정을 불러오는 중...</p>
+          </div>
         </div>
       ) : schedules.length === 0 ? (
         /* 일정 없음 */
-        <div className="text-center py-12 text-gray-600 dark:text-gray-400">
-          <p className="text-lg">등록된 일정이 없습니다</p>
-          <p className="text-sm mt-2">오른쪽 상단의 &apos;+ 일정 추가&apos; 버튼을 눌러 일정을 추가하세요</p>
+        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-12">
+          <div className="text-center">
+            <svg
+              className="mx-auto h-12 w-12 text-gray-400"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+              />
+            </svg>
+            <h3 className="mt-4 text-base font-semibold text-gray-900 dark:text-white">
+              등록된 일정이 없습니다
+            </h3>
+            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+              오른쪽 상단의 &apos;+ 일정 추가&apos; 버튼을 눌러 일정을 추가하세요
+            </p>
+          </div>
         </div>
       ) : (
         /* 일정 목록 */
@@ -219,14 +250,15 @@ export default function SchedulePage() {
             return (
               <div
                 key={schedule.EventID}
-                className="flex items-center justify-between bg-gray-50 dark:bg-gray-700 rounded-lg p-4 hover:shadow-md transition-all duration-300"
+                className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 transition-colors p-5 flex items-center justify-between"
               >
                 <div className="flex-1">
-                  <h3 className="font-semibold text-gray-900 dark:text-white text-lg">
+                  <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-1">
                     {schedule.EventTitle}
                   </h3>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
                     {new Date(schedule.EventDate).toLocaleDateString('ko-KR', {
+                      timeZone: 'Asia/Seoul',
                       year: 'numeric',
                       month: 'long',
                       day: 'numeric',
@@ -236,7 +268,7 @@ export default function SchedulePage() {
                 </div>
                 <div className="flex items-center gap-3">
                   <span
-                    className={`inline-block px-4 py-2 rounded-full text-xl font-bold ${dday === 0
+                    className={`inline-block px-4 py-2 rounded-full text-lg font-bold ${dday === 0
                       ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
                       : dday > 0 && dday <= 7
                         ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
@@ -249,7 +281,7 @@ export default function SchedulePage() {
                   </span>
                   <button
                     onClick={() => handleDeleteSchedule(schedule.EventID)}
-                    className="px-3 py-1 bg-red-600 text-white text-sm font-semibold rounded-lg hover:bg-red-700 transition-colors"
+                    className="px-3 py-1 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors"
                   >
                     삭제
                   </button>

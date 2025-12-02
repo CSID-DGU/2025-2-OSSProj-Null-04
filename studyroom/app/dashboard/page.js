@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import Sidebar from '@/components/layout/Sidebar';
 import LogoutButton from './LogoutButton';
 
 export default function DashboardPage() {
@@ -274,148 +273,143 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* 사이드바 */}
-      <Sidebar user={user} />
-
-      {/* 메인 콘텐츠 */}
-      <main className="flex-1 sidebar-expanded-content p-8">
-        <div className="max-w-6xl mx-auto">
-          {/* 헤더 */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-6">
-            <div className="flex justify-between items-center">
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-                환영합니다, <span className="text-primary-600">{user.name}</span>님!
-              </h1>
-              <LogoutButton />
-            </div>
+    <div className="p-6">
+      <div className="max-w-6xl mx-auto">
+        {/* 헤더 */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-5 mb-5 border border-gray-200 dark:border-gray-700">
+          <div className="flex justify-between items-center">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+              환영합니다, <span className="text-primary-600">{user.name}</span>님!
+            </h1>
+            <LogoutButton />
           </div>
+        </div>
 
-          {/* 에러 메시지 */}
-          {error && (
-            <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-              <p className="text-red-600 dark:text-red-400">{error}</p>
+        {/* 에러 메시지 */}
+        {error && (
+          <div className="mb-5 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+            <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+          </div>
+        )}
+
+        {/* 강의실 일정 영역 - D-day로 변경 */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-5 mb-5 border border-gray-200 dark:border-gray-700">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+            나의 강의실 일정
+          </h2>
+
+          {loading ? (
+            <div className="text-center py-10 text-gray-600 dark:text-gray-400 animate-pulse">
+              <div className="inline-block w-10 h-10 border-4 border-primary-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+              <p className="text-base font-medium">일정을 불러오는 중...</p>
+            </div>
+          ) : schedules.length === 0 ? (
+            <div className="text-center py-10 text-gray-600 dark:text-gray-400">
+              <p className="text-base">강의실 일정이 여기에 표시됩니다.</p>
+              <p className="text-sm mt-2">(가까운 일정 순으로 정렬)</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {schedules.map((schedule) => (
+                <div
+                  key={schedule.EventID}
+                  className="flex items-center justify-between bg-gray-50 dark:bg-gray-700 rounded-lg p-3 hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                >
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-gray-900 dark:text-white text-base">
+                      {schedule.EventTitle}
+                    </h3>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                      {schedule.roomName}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                      {new Date(schedule.EventDate).toLocaleDateString('ko-KR', {
+                        timeZone: 'Asia/Seoul',
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric',
+                        weekday: 'short',
+                      })}
+                    </p>
+                  </div>
+                  <div className="text-right ml-4">
+                    <span
+                      className={`inline-block px-3 py-1.5 rounded-full text-lg font-bold ${schedule.dday === 0
+                        ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                        : schedule.dday <= 7
+                          ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
+                          : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                        }`}
+                    >
+                      {formatDday(schedule.dday)}
+                    </span>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
+        </div>
 
-          {/* 강의실 일정 영역 - D-day로 변경 */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-6">
-            <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">
-              나의 강의실 일정
+        {/* 타이머 & 공부시간 영역 */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          {/* 타이머 */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-5 border border-gray-200 dark:border-gray-700">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+              스터디 타이머
             </h2>
 
-            {loading ? (
-              <div className="text-center py-12 text-gray-600 dark:text-gray-400 animate-pulse">
-                <div className="inline-block w-10 h-10 border-4 border-primary-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-                <p className="text-lg font-medium">일정을 불러오는 중...</p>
+            <div className="text-center mb-5">
+              <div className="text-4xl font-bold text-blue-600 dark:text-blue-400 mb-5">
+                {formatTime(currentTime)}
               </div>
-            ) : schedules.length === 0 ? (
-              <div className="text-center py-12 text-gray-600 dark:text-gray-400">
-                <p className="text-lg">강의실 일정이 여기에 표시됩니다.</p>
-                <p className="text-sm mt-2">(가까운 일정 순으로 정렬)</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {schedules.map((schedule) => (
-                  <div
-                    key={schedule.EventID}
-                    className="flex items-center justify-between bg-gray-50 dark:bg-gray-700 rounded-lg p-4 hover:shadow-md transition-all duration-300"
-                  >
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-gray-900 dark:text-white text-lg">
-                        {schedule.EventTitle}
-                      </h3>
-                      <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                        {schedule.roomName}
-                      </p>
-                      <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">
-                        {new Date(schedule.EventDate).toLocaleDateString('ko-KR', {
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric',
-                          weekday: 'short',
-                        })}
-                      </p>
-                    </div>
-                    <div className="text-right ml-4">
-                      <span
-                        className={`inline-block px-4 py-2 rounded-full text-xl font-bold ${schedule.dday === 0
-                            ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                            : schedule.dday <= 7
-                              ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
-                              : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                          }`}
-                      >
-                        {formatDday(schedule.dday)}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
 
-          {/* 타이머 & 공부시간 영역 */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* 타이머 */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-                스터디 타이머
-              </h2>
-
-              <div className="text-center mb-6">
-                <div className="text-5xl font-bold text-blue-600 dark:text-blue-400 mb-6">
-                  {formatTime(currentTime)}
-                </div>
-
-                <div className="flex justify-center gap-3">
-                  {/* 시작 버튼 (실행 중이 아닐 때만 표시) */}
-                  {!isRunning && (
-                    <button
-                      onClick={handleStart}
-                      className="px-6 py-2 bg-blue-600 text-white text-base font-semibold rounded-lg hover:bg-blue-700 transition-colors"
-                    >
-                      시작
-                    </button>
-                  )}
-
-                  {/* 일시정지 버튼 (실행 중일 때만 표시) */}
-                  {isRunning && (
-                    <button
-                      onClick={handlePause}
-                      className="px-6 py-2 bg-yellow-600 text-white text-base font-semibold rounded-lg hover:bg-yellow-700 transition-colors"
-                    >
-                      일시정지
-                    </button>
-                  )}
-
-                  {/* 리셋 버튼 (시간이 있을 때만 활성화) */}
+              <div className="flex justify-center gap-2">
+                {/* 시작 버튼 (실행 중이 아닐 때만 표시) */}
+                {!isRunning && (
                   <button
-                    onClick={handleReset}
-                    disabled={currentTime === 0}
-                    className="px-6 py-2 bg-red-600 text-white text-base font-semibold rounded-lg hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                    onClick={handleStart}
+                    className="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 text-sm font-medium rounded-lg transition-colors"
                   >
-                    리셋
+                    시작
                   </button>
-                </div>
+                )}
+
+                {/* 일시정지 버튼 (실행 중일 때만 표시) */}
+                {isRunning && (
+                  <button
+                    onClick={handlePause}
+                    className="px-4 py-2 bg-yellow-600 text-white hover:bg-yellow-700 text-sm font-medium rounded-lg transition-colors"
+                  >
+                    일시정지
+                  </button>
+                )}
+
+                {/* 리셋 버튼 (시간이 있을 때만 활성화) */}
+                <button
+                  onClick={handleReset}
+                  disabled={currentTime === 0}
+                  className="px-4 py-2 bg-red-600 text-white hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm font-medium rounded-lg transition-colors"
+                >
+                  리셋
+                </button>
               </div>
             </div>
+          </div>
 
-            {/* 오늘 공부 시간 */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-                오늘 총 공부시간
-              </h2>
-              <div className="text-center">
-                <div className="text-5xl font-bold text-green-600 dark:text-green-400 mb-2">
-                  {formatMinutes(totalStudyTime)}
-                </div>
-                <p className="text-gray-600 dark:text-gray-400">누적 학습 시간</p>
+          {/* 오늘 공부 시간 */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-5 border border-gray-200 dark:border-gray-700">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+              오늘 총 공부시간
+            </h2>
+            <div className="text-center">
+              <div className="text-4xl font-bold text-green-600 dark:text-green-400 mb-2">
+                {formatMinutes(totalStudyTime)}
               </div>
+              <p className="text-sm text-gray-600 dark:text-gray-400">누적 학습 시간</p>
             </div>
           </div>
         </div>
-      </main>
+      </div>
     </div>
   );
 }

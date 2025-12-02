@@ -34,11 +34,11 @@ export default async function RoomIdLayout({ children, params }) {
   const userRole = membership?.Role || null;
 
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="flex flex-col min-h-screen bg-white dark:bg-gray-900">
       {/* 헤더: 방 이름 + 강의실 코드 */}
-      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
-        <div className="flex items-center gap-4">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+      <div className="border-b border-gray-200 dark:border-gray-700 px-5 py-3 bg-white dark:bg-gray-800">
+        <div className="flex items-center gap-3">
+          <h1 className="text-xl font-bold text-gray-900 dark:text-white">
             {room.RoomName}
           </h1>
           <RoomCodeCopy enterPin={room.EnterPin} />
@@ -49,7 +49,7 @@ export default async function RoomIdLayout({ children, params }) {
       <RoomNavBar roomId={roomId} userRole={userRole} />
 
       {/* 페이지 콘텐츠 */}
-      <div className="flex-1 p-6 bg-gray-50 dark:bg-gray-900">
+      <div className="flex-1 p-5 bg-gray-50 dark:bg-gray-900">
         {children}
       </div>
     </div>
