@@ -31,6 +31,10 @@ export default async function RoomIdLayout({ children, params }) {
     .eq('RoomID', roomId)
     .single();
 
+  if (!membership) {
+    redirect('/dashboard'); // 멤버가 아니면 차단
+  }
+
   const userRole = membership?.Role || null;
 
   return (

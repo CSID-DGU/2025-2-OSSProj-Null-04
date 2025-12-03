@@ -12,6 +12,7 @@ export default function DashboardPage() {
   const [isRunning, setIsRunning] = useState(false);
   const [currentTime, setCurrentTime] = useState(0); // 초 단위
   const [totalStudyTime, setTotalStudyTime] = useState(0); // 분 단위
+  const [comparison, setComparison] = useState(''); // 엔터테인먼트 비유
 
   // 일정 상태
   const [schedules, setSchedules] = useState([]);
@@ -25,6 +26,15 @@ export default function DashboardPage() {
   useEffect(() => {
     checkAuth();
   }, []);
+
+  // 총 공부시간 변경 시 엔터테인먼트 비유 업데이트 (1분마다만)
+  useEffect(() => {
+    const totalMinutes = totalStudyTime + Math.floor(currentTime / 60);
+    if (totalMinutes > 0) {
+      const newComparison = getRandomComparison(totalMinutes);
+      setComparison(newComparison || '');
+    }
+  }, [totalStudyTime, Math.floor(currentTime / 60)]);
 
   // 타이머 실행
   useEffect(() => {
@@ -239,12 +249,11 @@ export default function DashboardPage() {
     }
   };
 
-  // 시간 포맷팅 (초 -> H시간 M분 S초)
+  // 시간 포맷팅 (초 -> H시간 M분, 초 제외)
   const formatTime = (seconds) => {
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    return `${hours}시간 ${minutes}분 ${secs}초`;
+    return `${hours}시간 ${minutes}분`;
   };
 
   // 분을 시간:분 포맷으로 변환
@@ -252,6 +261,27 @@ export default function DashboardPage() {
     const hours = Math.floor(minutes / 60);
     const mins = minutes % 60;
     return `${hours}시간 ${mins}분`;
+  };
+
+  // 엔터테인먼트 비유 계산 함수
+  const getRandomComparison = (totalMinutes) => {
+    const comparisons = [
+      { type: 'netflix', unit: 60, text: '넷플릭스 드라마', suffix: '화', action: '시청할' },
+      { type: 'movie', unit: 120, text: '영화', suffix: '편', action: '감상할' },
+      { type: 'youtube', unit: 20, text: '유튜브 영상', suffix: '개', action: '시청할' },
+      { type: 'manga', unit: 60, text: '만화책', suffix: '권', action: '읽을' },
+      { type: 'novel', unit: 360, multiplier: 100, text: '소설', suffix: '페이지', action: '읽을' },
+      { type: 'webtoon', unit: 5, text: '웹툰', suffix: '화', action: '정주행할' },
+      { type: 'game', unit: 15, text: '게임', suffix: '판', action: '플레이할' },
+    ];
+
+    const random = comparisons[Math.floor(Math.random() * comparisons.length)];
+    const count = Math.floor(totalMinutes / random.unit);
+
+    if (count === 0) return null;
+
+    const amount = random.multiplier ? count * random.multiplier : count;
+    return `${random.text} ${amount}${random.suffix} ${random.action} 수 있던 시간이에요!`;
   };
 
   // D-day 표시
@@ -353,13 +383,36 @@ export default function DashboardPage() {
         {/* 타이머 & 공부시간 영역 */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           {/* 타이머 */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-5 border border-gray-200 dark:border-gray-700">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+          <div className="relative bg-white dark:bg-gray-800 rounded-lg p-5 border border-gray-200 dark:border-gray-700 overflow-hidden">
+            {/* 프로그레스 오버레이 */}
+            <div
+              className="absolute inset-0 pointer-events-none rounded-lg"
+              style={{
+                background:
+                  Math.floor(currentTime / 60) % 2 === 0
+                    ? `conic-gradient(from 0deg at 50% 50%,
+                        rgba(2, 132, 199, 1) 0deg,
+                        rgba(2, 132, 199, 1) ${(currentTime % 60) * 6}deg,
+                        transparent ${(currentTime % 60) * 6}deg,
+                        transparent 360deg)`
+                    : `conic-gradient(from 0deg at 50% 50%,
+                        transparent 0deg,
+                        transparent ${(currentTime % 60) * 6}deg,
+                        rgba(2, 132, 199, 1) ${(currentTime % 60) * 6}deg,
+                        rgba(2, 132, 199, 1) 360deg)`,
+                WebkitMask: `linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)`,
+                WebkitMaskComposite: 'xor',
+                maskComposite: 'exclude',
+                padding: '4px',
+              }}
+            />
+
+            <h2 className="relative z-10 text-lg font-semibold text-gray-900 dark:text-white mb-4">
               스터디 타이머
             </h2>
 
-            <div className="text-center mb-5">
-              <div className="text-4xl font-bold text-blue-600 dark:text-blue-400 mb-5">
+            <div className="relative z-10 text-center mb-5">
+              <div className="text-3xl font-bold text-gray-900 dark:text-white mb-5">
                 {formatTime(currentTime)}
               </div>
 
@@ -397,15 +450,19 @@ export default function DashboardPage() {
           </div>
 
           {/* 오늘 공부 시간 */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-5 border border-gray-200 dark:border-gray-700">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              오늘 총 공부시간
-            </h2>
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-5 border border-gray-200 dark:border-gray-700 flex items-center justify-center">
             <div className="text-center">
-              <div className="text-4xl font-bold text-green-600 dark:text-green-400 mb-2">
-                {formatMinutes(totalStudyTime)}
+              <div className="text-2xl font-bold text-gray-900 dark:text-white mb-3">
+                오늘 총 {formatMinutes(totalStudyTime + Math.floor(currentTime / 60))} 공부했어요
               </div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">누적 학습 시간</p>
+              {comparison && (
+                <p
+                  key={comparison}
+                  className="text-sm text-gray-500 dark:text-gray-400 animate-fade-in"
+                >
+                  {comparison}
+                </p>
+              )}
             </div>
           </div>
         </div>
