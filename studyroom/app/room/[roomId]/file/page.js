@@ -258,9 +258,12 @@ export default function FilePage() {
 
       {/* 파일 업로드 섹션 */}
       <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-5 mb-5">
-        <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4">
+        <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-2">
           파일 업로드
         </h3>
+        <p className="text-xs text-gray-400 dark:text-gray-500 mb-4">
+          저작권이 있는 파일의 경우 저작권자의 허락 없이 파일을 무단 복제, 배포, 공유할 수 없으며, 이를 위반할 경우 법적 처벌을 받을 수 있습니다.
+        </p>
 
         {/* 드래그앤드롭 영역 */}
         <div
