@@ -113,7 +113,7 @@ export async function POST(request) {
 
     // OpenAI 스트리밍 호출
     const stream = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'gpt-5.1',
       messages,
       stream: true,
       max_tokens: 1000,
