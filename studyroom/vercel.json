@@ -1,0 +1,8 @@
+{
+    "functions": {
+        "api/room/*/file/route.js": {
+            "maxDuration": 60,
+            "memory": 3008
+        }
+    }
+}
