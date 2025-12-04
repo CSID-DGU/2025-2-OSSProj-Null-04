@@ -36,9 +36,36 @@ function resolveServiceAccountPath(rawPath = '') {
   return path.join(cwd, normalized);
 }
 
-const serviceAccountPath = resolveServiceAccountPath(process.env.GOOGLE_APPLICATION_CREDENTIALS);
-const storageClient = serviceAccountPath ? new Storage({ keyFilename: serviceAccountPath }) : new Storage();
-const visionFileClient = new ImageAnnotatorClient();
+// Google Cloud 인증 설정 (파일 경로 또는 JSON 텍스트 자동 감지)
+function getGoogleCloudAuthConfig() {
+  const credentials = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+
+  if (!credentials) {
+    return {}; // 기본 인증 사용
+  }
+
+  // JSON 텍스트인지 확인 (Vercel용)
+  if (credentials.trim().startsWith('{')) {
+    try {
+      const parsed = JSON.parse(credentials);
+      return { credentials: parsed };
+    } catch (error) {
+      console.error('Failed to parse GOOGLE_APPLICATION_CREDENTIALS as JSON:', error);
+    }
+  }
+
+  // 파일 경로로 처리 (로컬용)
+  const filePath = resolveServiceAccountPath(credentials);
+  if (filePath) {
+    return { keyFilename: filePath };
+  }
+
+  return {};
+}
+
+const authConfig = getGoogleCloudAuthConfig();
+const storageClient = new Storage(authConfig);
+const visionFileClient = new ImageAnnotatorClient(authConfig);
 
 function getOpenAIClient() {
   const apiKey = process.env.OPENAI_API_KEY;
