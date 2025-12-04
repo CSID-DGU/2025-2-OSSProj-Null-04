@@ -113,10 +113,10 @@ export async function POST(request) {
 
     // OpenAI 스트리밍 호출
     const stream = await openai.chat.completions.create({
-      model: 'gpt-5.1',
+      model: 'gpt-5.1-chat-latest',  // GPT-5.1 Instant (채팅 최적화)
       messages,
       stream: true,
-      max_tokens: 1000,
+      max_completion_tokens: 1000,
     });
 
     // 전체 응답을 수집할 변수
