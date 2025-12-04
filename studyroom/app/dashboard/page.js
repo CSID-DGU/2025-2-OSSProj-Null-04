@@ -23,19 +23,24 @@ export default function DashboardPage() {
   const timerRef = useRef(null);
 
   // 컴포넌트 마운트 시 인증 확인 및 데이터 로드
-  useEffect(() => {
-    checkAuth();
+ useEffect(() => {
+    const initialize = async () => {
+      await checkAuth();
+    };
+    initialize();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // 총 공부시간 변경 시 엔터테인먼트 비유 업데이트 (1분마다만)
+  const currentMinutes = Math.floor(currentTime / 60);
+
   useEffect(() => {
-    const totalMinutes = totalStudyTime + Math.floor(currentTime / 60);
+    const totalMinutes = totalStudyTime + currentMinutes;
     if (totalMinutes > 0) {
       const newComparison = getRandomComparison(totalMinutes);
       setComparison(newComparison || '');
     }
-  }, [totalStudyTime, Math.floor(currentTime / 60)]);
-
+  }, [totalStudyTime, currentMinutes]);
   // 타이머 실행
   useEffect(() => {
     if (isRunning) {
