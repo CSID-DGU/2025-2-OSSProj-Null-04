@@ -1,6 +1,6 @@
 {
     "functions": {
-        "api/room/*/file/route.js": {
+        "app/api/room/[roomId]/file/route.js": {
             "maxDuration": 60,
             "memory": 3008
         }
