@@ -14,15 +14,14 @@ export default function FilePage() {
   const [uploadingFiles, setUploadingFiles] = useState([]); // 업로드 중인 파일들 { id, name, progress }
   const [dragCounter, setDragCounter] = useState(0); // 드래그 카운터
 
-  // localStorage 키
-  const STORAGE_KEY = `uploading_files_${roomId}`;
+
 
   // 컴포넌트 마운트 시 localStorage에서 업로드 중인 파일 복원
   useEffect(() => {
     if (!roomId) return;
-
+      const storageKey = `uploading_files_${roomId}`;
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
+      const stored = localStorage.getItem(storageKey);
       if (stored) {
         const parsedFiles = JSON.parse(stored);
         setUploadingFiles(parsedFiles);
@@ -43,11 +42,12 @@ export default function FilePage() {
   // uploadingFiles 변경 시 localStorage에 저장
   useEffect(() => {
     if (!roomId) return;
+      const storageKey = `uploading_files_${roomId}`;
 
     if (uploadingFiles.length > 0) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(uploadingFiles));
+      localStorage.setItem(storageKey, JSON.stringify(uploadingFiles));
     } else {
-      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(storageKey);
     }
   }, [uploadingFiles, roomId]);
 
