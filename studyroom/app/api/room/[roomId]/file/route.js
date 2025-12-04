@@ -35,62 +35,35 @@ export async function POST(request, context) {
       );
     }
 
-    const formData = await request.formData();
-    const file = formData.get('file');
+    // 클라이언트 직접 업로드 후 메타데이터 저장
+    const { fileName, filePath, fileType } = await request.json();
 
-    if (!(file instanceof File)) {
+    if (!fileName || !filePath) {
       return NextResponse.json(
-        { error: '업로드할 파일이 필요합니다' },
+        { error: '파일명과 경로가 필요합니다' },
         { status: 400 }
       );
     }
 
-    const arrayBuffer = await file.arrayBuffer();
-    const fileBuffer = Buffer.from(arrayBuffer);
-    const original = file.name || 'upload.bin';
-    const safeName = original
-      .normalize('NFC')
-      .replace(/[^\w.\-]+/g, '_')
-      .replace(/_+/g, '_')
-      .replace(/^_+|_+$/g, '');
-    const finalName = safeName || 'upload.bin';
-    const filePath = `rooms/${roomId}/${Date.now()}-${finalName}`;
-
-    const { data: uploadData, error: uploadError } = await supabaseService.storage
-      .from(STORAGE_BUCKET)
-      .upload(filePath, fileBuffer, {
-        contentType: file.type || 'application/octet-stream',
-        cacheControl: '3600',
-        upsert: false,
-      });
-
-    if (uploadError) {
-      console.error('Supabase storage upload error:', uploadError);
-      return NextResponse.json(
-        { error: '파일 업로드에 실패했습니다' },
-        { status: 500 }
-      );
-    }
-
     const supabase = await createClient();
-    const fileUrl = uploadData?.path ?? filePath;
 
+    // DB에 메타데이터 저장
     const { data: metadata, error: metadataError } = await supabase
       .from('File')
       .insert([{
         RoomID: roomId,
-        FileName: file.name,
-        FileUrl: fileUrl,
+        FileName: fileName,
+        FileUrl: filePath,
         UserID: user.id,
       }])
       .select()
       .single();
 
     if (metadataError) {
-      console.error('RoomFile insert error:', metadataError);
+      console.error('File metadata insert error:', metadataError);
       await supabaseService.storage
         .from(STORAGE_BUCKET)
-        .remove([fileUrl]);
+        .remove([filePath]);
 
       return NextResponse.json(
         { error: '파일 메타데이터 저장에 실패했습니다' },
@@ -98,23 +71,19 @@ export async function POST(request, context) {
       );
     }
 
+    // 벡터화 처리 (백그라운드 - 실패해도 업로드는 성공)
     try {
       await vectorizeFileChunks({
         fileId: metadata?.FileID,
         roomId,
-        fileName: file.name,
-        filePath: fileUrl,
-        fileBuffer,
-        fileMime: file.type || '',
+        fileName,
+        filePath,
+        fileBuffer: null, // 파일은 이미 업로드됨
+        fileMime: fileType || '',
       });
     } catch (vectorError) {
       console.error('File chunk embedding error:', vectorError);
-      await supabaseService.storage.from(STORAGE_BUCKET).remove([fileUrl]);
-      await supabase.from('File').delete().eq('FileID', metadata?.FileID);
-      return NextResponse.json(
-        { error: '파일 임베딩 생성에 실패했습니다' },
-        { status: 500 }
-      );
+      // 벡터화 실패는 업로드 성공에 영향 주지 않음
     }
 
     return NextResponse.json(
@@ -122,16 +91,16 @@ export async function POST(request, context) {
         success: true,
         file: {
           id: metadata?.FileID ?? null,
-          name: file.name,
-          url: fileUrl,
+          name: fileName,
+          url: filePath,
         },
       },
       { status: 201 }
     );
   } catch (error) {
-    console.error('File upload error:', error);
+    console.error('File metadata save error:', error);
     return NextResponse.json(
-      { error: '파일 업로드 중 오류가 발생했습니다' },
+      { error: '파일 메타데이터 저장 중 오류가 발생했습니다' },
       { status: 500 }
     );
   }

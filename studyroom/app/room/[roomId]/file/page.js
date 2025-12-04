@@ -19,7 +19,7 @@ export default function FilePage() {
   // 컴포넌트 마운트 시 localStorage에서 업로드 중인 파일 복원
   useEffect(() => {
     if (!roomId) return;
-      const storageKey = `uploading_files_${roomId}`;
+    const storageKey = `uploading_files_${roomId}`;
     try {
       const stored = localStorage.getItem(storageKey);
       if (stored) {
@@ -42,7 +42,7 @@ export default function FilePage() {
   // uploadingFiles 변경 시 localStorage에 저장
   useEffect(() => {
     if (!roomId) return;
-      const storageKey = `uploading_files_${roomId}`;
+    const storageKey = `uploading_files_${roomId}`;
 
     if (uploadingFiles.length > 0) {
       localStorage.setItem(storageKey, JSON.stringify(uploadingFiles));
@@ -98,57 +98,78 @@ export default function FilePage() {
       return;
     }
 
-    // 임시 ID 생성
     const tempId = `temp-${Date.now()}`;
     const fileName = selectedFile.name;
+    const fileType = selectedFile.type;
 
-    // 즉시 업로드 중 목록에 추가
     setUploadingFiles(prev => [...prev, {
       id: tempId,
       name: fileName,
       progress: 0
     }]);
 
-    // 선택된 파일 초기화
     const fileToUpload = selectedFile;
     setSelectedFile(null);
     setUploadError('');
 
-    // 진행률 시뮬레이션 시작
+    // 진행률 시뮬레이션
     let currentProgress = 0;
     const progressInterval = setInterval(() => {
       currentProgress += Math.random() * 15;
       if (currentProgress > 90) currentProgress = 90;
-
       setUploadingFiles(prev =>
         prev.map(f => f.id === tempId ? { ...f, progress: Math.floor(currentProgress) } : f)
       );
     }, 500);
 
     try {
-      // 백그라운드에서 실제 업로드 수행
-      const formData = new FormData();
-      formData.append('file', fileToUpload);
-
-      const res = await fetch(`/api/room/${roomId}/file`, {
+      // Step 1: Presigned URL 요청
+      const presignedRes = await fetch(`/api/room/${roomId}/file/presigned-url`, {
         method: 'POST',
-        body: formData,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileName, fileType }),
       });
 
-      const data = await res.json();
+      const presignedData = await presignedRes.json();
+
+      if (!presignedRes.ok) {
+        throw new Error(presignedData.error || 'Presigned URL 생성에 실패했습니다.');
+      }
+
+      const { token, path } = presignedData;
+
+      // Step 2: Supabase SDK로 직접 업로드
+      const { createClient } = await import('@/lib/supabase/client');
+      const supabase = createClient();
+
+      const { error: uploadError } = await supabase.storage
+        .from('room-files')
+        .uploadToSignedUrl(path, token, fileToUpload);
+
+      if (uploadError) {
+        throw new Error(uploadError.message || '파일 업로드에 실패했습니다.');
+      }
+
+      // Step 3: 메타데이터 저장
+      const metadataRes = await fetch(`/api/room/${roomId}/file`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileName, filePath: path, fileType }),
+      });
+
+      const metadataData = await metadataRes.json();
+
+      if (!metadataRes.ok) {
+        throw new Error(metadataData.error || '메타데이터 저장에 실패했습니다.');
+      }
 
       clearInterval(progressInterval);
 
-      if (!res.ok) {
-        throw new Error(data.error || '업로드에 실패했습니다.');
-      }
-
-      // 100% 완료 표시
+      // 100% 완료
       setUploadingFiles(prev =>
         prev.map(f => f.id === tempId ? { ...f, progress: 100 } : f)
       );
 
-      // 0.5초 후 목록에서 제거하고 파일 목록 새로고침
       setTimeout(() => {
         setUploadingFiles(prev => prev.filter(f => f.id !== tempId));
         queryClient.invalidateQueries(['files', roomId]);
@@ -156,9 +177,7 @@ export default function FilePage() {
 
     } catch (error) {
       clearInterval(progressInterval);
-
-      // 업로드 실패 시 목록에서 제거
-      setUploadingFiles(prev => prev.filter(f => f.id !== tempId));
+      setUploadingFiles(prev => prev.filter(f => f.id === tempId));
       setUploadError(error.message || '파일 업로드 중 오류가 발생했습니다.');
     }
   };

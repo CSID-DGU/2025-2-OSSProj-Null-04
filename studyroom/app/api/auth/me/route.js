@@ -18,7 +18,7 @@ export async function GET(request) {
     // User 테이블에서 추가 정보 조회 (이름 등)
     const { data: userInfo, error: userError } = await supabase
       .from('User')
-      .select('UserID, 이름 as name, 비밀번호 as email')
+      .select('UserID, name')
       .eq('UserID', user.id)
       .single();
 
