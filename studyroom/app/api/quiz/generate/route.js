@@ -136,7 +136,8 @@ ${context}
         }
       ],
       temperature: 0.7,
-      response_format: { type: "json_object" }
+      response_format: { type: "json_object" },
+      reasoning_effort: 'medium',  // 퀴즈 품질 향상을 위한 중간 수준 추론
     });
 
     const result = JSON.parse(completion.choices[0].message.content);
