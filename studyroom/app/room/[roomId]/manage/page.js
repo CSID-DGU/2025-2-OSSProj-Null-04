@@ -235,7 +235,7 @@ export default function ManagePage() {
                     <button
                       onClick={() => handleKickMember(member.UserID, member.User?.name)}
                       disabled={kickMemberMutation.isPending}
-                      className="px-3 py-1 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                      className="px-4 py-2 rounded-lg bg-red-100 hover:bg-red-200 text-red-700 transition-colors text-sm font-medium disabled:opacity-60"
                     >
                       {kickMemberMutation.isPending ? '처리 중...' : '강퇴'}
                     </button>
