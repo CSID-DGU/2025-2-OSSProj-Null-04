@@ -1,15 +1,12 @@
 'use client';
 
-import { useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 
 export default function QuizPage() {
   const router = useRouter();
   const params = useParams();
   const roomId = params.roomId;
-  const queryClient = useQueryClient();
-  const [deletingQuizId, setDeletingQuizId] = useState(null);
 
   // 퀴즈 목록 조회 (useQuery)
   const { data: quizzes = [], isLoading: loading, error } = useQuery({
@@ -34,40 +31,6 @@ export default function QuizPage() {
 
   const handleTakeQuiz = (quizId) => {
     router.push(`/room/${roomId}/quiz/${quizId}/take`);
-  };
-
-  // 퀴즈 삭제 mutation
-  const deleteQuizMutation = useMutation({
-    mutationFn: async (quizId) => {
-      const res = await fetch(`/api/quiz/${roomId}/${quizId}`, {
-        method: 'DELETE',
-      });
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || '퀴즈 삭제에 실패했습니다');
-      }
-
-      return data;
-    },
-    onMutate: (quizId) => {
-      setDeletingQuizId(quizId);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries(['quizzes', roomId]);
-      alert('퀴즈가 삭제되었습니다');
-    },
-    onError: (err) => {
-      alert(err.message || '퀴즈 삭제에 실패했습니다');
-    },
-    onSettled: () => {
-      setDeletingQuizId(null);
-    }
-  });
-
-  const handleDeleteQuiz = (quizId) => {
-    if (!confirm('해당 퀴즈를 삭제하시겠습니까?')) return;
-    deleteQuizMutation.mutate(quizId);
   };
 
   return (
@@ -146,27 +109,12 @@ export default function QuizPage() {
                   문제 수: {quiz.questionCount}개
                 </p>
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => handleTakeQuiz(quiz.QuizID)}
-                  className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-60"
-                  disabled={deleteQuizMutation.isPending && deletingQuizId === quiz.QuizID}
-                >
-                  퀴즈 풀기
-                </button>
-                <button
-                  onClick={() => handleDeleteQuiz(quiz.QuizID)}
-                  className="px-4 py-2 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors text-sm font-medium disabled:opacity-60"
-                  disabled={deleteQuizMutation.isPending && deletingQuizId === quiz.QuizID}
-                  aria-label="퀴즈 삭제"
-                >
-                  {deleteQuizMutation.isPending && deletingQuizId === quiz.QuizID ? (
-                    <span className="text-xs px-1">삭제 중...</span>
-                  ) : (
-                    <span className="px-1">삭제</span>
-                  )}
-                </button>
-              </div>
+              <button
+                onClick={() => handleTakeQuiz(quiz.QuizID)}
+                className="bg-primary-600 hover:bg-primary-700 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors"
+              >
+                퀴즈 풀기
+              </button>
             </div>
           ))}
         </div>
