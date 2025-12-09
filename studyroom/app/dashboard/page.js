@@ -106,7 +106,12 @@ export default function DashboardPage() {
 
       if (data.activeTimer) {
         setIsRunning(true);
-        const startTime = new Date(data.activeTimer.saveTime);
+        // saveTime을 UTC로 명시적 파싱 (타임존 이슈 방지)
+        let saveTimeStr = data.activeTimer.saveTime;
+        if (!saveTimeStr.endsWith('Z') && !saveTimeStr.includes('+')) {
+          saveTimeStr += 'Z';  // UTC 타임존 명시
+        }
+        const startTime = new Date(saveTimeStr);
         const elapsed = Math.floor((Date.now() - startTime.getTime()) / 1000);
         setCurrentTime(elapsed);
       }
