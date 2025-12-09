@@ -101,6 +101,27 @@ npm run dev
 브라우저 주소창에 http://localhost:3000을 입력하여 서비스를 확인하세요.
 
 ---
+
+## 🖥️ 화면 UI
+### 1. 온보딩화면
+<img width="1892" height="1027" alt="image" src="https://github.com/user-attachments/assets/d5946bf2-1780-4d4a-a786-d1f53dc2b4bc" />
+
+### 2. 대시보드
+<img width="1896" height="1037" alt="image" src="https://github.com/user-attachments/assets/058e0fa9-dc65-41cd-931b-fc8ba217b1e7" />
+
+### 3. 파일 업로드
+<img width="1887" height="1031" alt="image" src="https://github.com/user-attachments/assets/25340a0f-8e6a-4fbe-853b-7b2273a23a55" />
+
+### 4. 퀴즈 생성
+<img width="1880" height="1035" alt="image" src="https://github.com/user-attachments/assets/13636d18-2d04-4448-81fb-2ed6d7fa287d" />
+
+### 5. 퀴즈 풀이
+<img width="1876" height="1030" alt="image" src="https://github.com/user-attachments/assets/751ee5df-d053-41f2-969e-a5d60faf4cfd" />
+
+### 6. 그룹 학습
+<img width="1892" height="1030" alt="image" src="https://github.com/user-attachments/assets/0a760af3-20ba-42da-9d66-be3ed53e0b61" />
+
+---
 ## 📂 폴더 구조 (Directory Structure)
 본 프로젝트는 Next.js 15 App Router 구조를 따르고 있습니다.
 ```bash
