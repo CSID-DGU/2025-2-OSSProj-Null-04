@@ -1,0 +1,173 @@
+import { createClient } from '@/lib/supabase/server';
+import { getCurrentUser } from '@/lib/auth';
+import openai, { getQuestionHelperSystemPrompt } from '@/lib/openai';
+import { generateEmbedding, searchSimilarChunks } from '@/lib/vectorize/semanticSearch';
+
+// POST: 메시지 전송 + 스트리밍 응답
+export async function POST(request) {
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return Response.json({ error: '로그인이 필요합니다' }, { status: 401 });
+    }
+
+    const { sessionId, questionId, message } = await request.json();
+
+    if (!sessionId || !questionId || !message) {
+      return Response.json({ error: '필수 파라미터가 누락되었습니다' }, { status: 400 });
+    }
+
+    const supabase = await createClient();
+
+    // 문제 정보 조회
+    const { data: question, error: questionError } = await supabase
+      .from('Question')
+      .select('QuestionID, question, optionA, optionB, optionC, optionD, correctAnswer, explanation, QuizID')
+      .eq('QuestionID', questionId)
+      .single();
+
+    if (questionError || !question) {
+      return Response.json({ error: '문제를 찾을 수 없습니다' }, { status: 404 });
+    }
+
+    // QuizSourceFiles를 통해 출처 파일 추적
+    let additionalContext = null;
+    if (question.QuizID) {
+      const { data: sourceFiles } = await supabase
+        .from('QuizSourceFiles')
+        .select('FileID')
+        .eq('QuizID', question.QuizID);
+
+      if (sourceFiles && sourceFiles.length > 0) {
+        const fileIds = sourceFiles.map(sf => sf.FileID);
+        console.log(`[Chat] 출처 파일 ${fileIds.length}개 발견`);
+
+        // 사용자 질문 임베딩 생성
+        const queryEmbedding = await generateEmbedding(message);
+
+        if (queryEmbedding) {
+          // 단계적 threshold 조정 (0.6 → 0.5 → 0.4 → 0.35 → 0.3)
+          const thresholds = [0.6, 0.5, 0.4, 0.35, 0.3];
+          let chunks = null;
+
+          for (const threshold of thresholds) {
+            chunks = await searchSimilarChunks(queryEmbedding, fileIds, {
+              threshold,
+              limit: 10,
+            });
+
+            if (chunks && chunks.length > 0) {
+              console.log(`[Chat] threshold ${threshold}에서 ${chunks.length}개 청크 발견`);
+              break; // 첫 번째 성공한 threshold에서 중단
+            }
+          }
+
+          if (chunks && chunks.length > 0) {
+            // 청크를 최대 2000자까지 연결
+            let contextText = '';
+            for (const chunk of chunks) {
+              const nextText = contextText + chunk.ChunkText + '\n\n---\n\n';
+              if (nextText.length > 2000) break;
+              contextText = nextText;
+            }
+
+            if (contextText.length > 0) {
+              additionalContext = contextText.trim();
+              console.log(`[Chat] 컨텍스트 ${additionalContext.length}자 추가`);
+            }
+          }
+        }
+      }
+    }
+
+    // 사용자 메시지 저장
+    const { error: userMsgError } = await supabase
+      .from('chat_messages')
+      .insert({
+        SessionID: sessionId,
+        sender: 'User',
+        message: message,
+      });
+
+    if (userMsgError) {
+      console.error('사용자 메시지 저장 오류:', userMsgError);
+      return Response.json({ error: '메시지 저장에 실패했습니다' }, { status: 500 });
+    }
+
+    // 대화 히스토리 조회 (최근 10개)
+    const { data: history } = await supabase
+      .from('chat_messages')
+      .select('sender, message')
+      .eq('SessionID', sessionId)
+      .order('created_at', { ascending: true })
+      .limit(10);
+
+    // OpenAI 메시지 배열 구성 (추가 컨텍스트 전달)
+    const messages = [
+      { role: 'system', content: getQuestionHelperSystemPrompt(question, additionalContext) },
+      ...(history || []).map(msg => ({
+        role: msg.sender === 'User' ? 'user' : 'assistant',
+        content: msg.message,
+      })),
+    ];
+
+    // OpenAI 스트리밍 호출
+    const stream = await openai.chat.completions.create({
+      model: 'gpt-5.1-chat-latest',  // GPT-5.1 Instant (채팅 최적화)
+      messages,
+      stream: true,
+      max_completion_tokens: 1000,
+    });
+
+    // 전체 응답을 수집할 변수
+    let fullResponse = '';
+
+    // TransformStream을 사용하여 스트림 처리
+    const encoder = new TextEncoder();
+
+    const readable = new ReadableStream({
+      async start(controller) {
+        try {
+          for await (const chunk of stream) {
+            const content = chunk.choices[0]?.delta?.content || '';
+            if (content) {
+              fullResponse += content;
+              // SSE 형식으로 전송
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content })}\n\n`));
+            }
+          }
+
+          // 스트림 완료 후 AI 응답 DB 저장
+          if (fullResponse) {
+            await supabase
+              .from('chat_messages')
+              .insert({
+                SessionID: sessionId,
+                sender: 'AI',
+                message: fullResponse,
+              });
+          }
+
+          // 스트림 종료 신호
+          controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+          controller.close();
+        } catch (error) {
+          console.error('스트리밍 오류:', error);
+          controller.error(error);
+        }
+      },
+    });
+
+    return new Response(readable, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+      },
+    });
+
+  } catch (error) {
+    console.error('메시지 API 오류:', error);
+    return Response.json({ error: '서버 오류가 발생했습니다' }, { status: 500 });
+  }
+}
