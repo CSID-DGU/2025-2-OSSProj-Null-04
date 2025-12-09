@@ -281,7 +281,8 @@ export default function SchedulePage() {
                   </span>
                   <button
                     onClick={() => handleDeleteSchedule(schedule.EventID)}
-                    className="px-3 py-1 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors"
+                    className="px-4 py-2 rounded-lg bg-red-100 hover:bg-red-200 text-red-700 transition-colors text-sm font-medium disabled:opacity-60"
+                    disabled={deleteScheduleMutation.isPending}
                   >
                     삭제
                   </button>
