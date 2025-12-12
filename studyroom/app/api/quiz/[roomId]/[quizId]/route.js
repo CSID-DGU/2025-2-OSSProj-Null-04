@@ -40,7 +40,7 @@ export async function GET(request, { params }) {
     // 문제 목록 조회
     const { data: questions, error: questionsError } = await supabase
       .from('Question')
-      .select('QuestionID, question, optionA, optionB, optionC, optionD, correctAnswer, explanation')
+      .select('QuestionID, question, optionA, optionB, optionC, optionD, correctAnswer, explanation, questionType')
       .eq('QuizID', quizId)
       .order('QuestionID', { ascending: true });
 

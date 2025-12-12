@@ -48,16 +48,29 @@ export async function POST(request) {
     if (quizError) throw quizError;
 
     // 문제 생성
-    const questionRecords = questions.map(q => ({
-      question: q.question,
-      optionA: q.optionA,
-      optionB: q.optionB,
-      optionC: q.optionC,
-      optionD: q.optionD,
-      correctAnswer: q.correctAnswer,
-      explanation: q.explanation || null,
-      QuizID: quiz.QuizID
-    }));
+    const questionRecords = questions.map(q => {
+      const qtRaw = q.questionType || 'MCQ';
+      const qtNormalized =
+        qtRaw.toUpperCase() === 'MCQ'
+          ? 'MCQ'
+          : qtRaw.toLowerCase() === 'short'
+            ? 'short'
+            : qtRaw.toLowerCase() === 'essay'
+              ? 'essay'
+              : 'MCQ';
+
+      return {
+        question: q.question,
+        optionA: q.optionA || null,
+        optionB: q.optionB || null,
+        optionC: q.optionC || null,
+        optionD: q.optionD || null,
+        correctAnswer: q.correctAnswer,
+        explanation: q.explanation || null,
+        questionType: qtNormalized,
+        QuizID: quiz.QuizID
+      };
+    });
 
     const { error: questionsError } = await supabase
       .from('Question')
