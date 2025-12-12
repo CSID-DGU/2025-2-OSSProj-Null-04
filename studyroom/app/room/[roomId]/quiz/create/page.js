@@ -13,7 +13,11 @@ export default function CreateQuizPage() {
   // 기본 설정
   const [quizTitle, setQuizTitle] = useState('');
   const [selectedFiles, setSelectedFiles] = useState([]);
-  const [questionCount, setQuestionCount] = useState(10);
+  const [questionCounts, setQuestionCounts] = useState({
+    mcq: 5,
+    short: 3,
+    essay: 2
+  });
   const [difficulty, setDifficulty] = useState('medium');
   const [creationMode, setCreationMode] = useState(null); // 'auto' or 'manual'
 
@@ -84,6 +88,53 @@ export default function CreateQuizPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId]);
 
+  const normalizeQuestionType = (type) => {
+    const value = (type || 'MCQ').toString();
+    if (value.toUpperCase() === 'MCQ') return 'MCQ';
+    if (value.toLowerCase() === 'short') return 'short';
+    if (value.toLowerCase() === 'essay') return 'essay';
+    return 'MCQ';
+  };
+
+  const getCurrentQuestionCounts = () => {
+    return questions.reduce(
+      (acc, q) => {
+        const type = normalizeQuestionType(q.questionType || q.type);
+        acc[type] = (acc[type] || 0) + 1;
+        return acc;
+      },
+      { MCQ: 0, short: 0, essay: 0 }
+    );
+  };
+
+  const getRemainingCounts = () => {
+    const currentCounts = getCurrentQuestionCounts();
+
+    return {
+      mcq: Math.max(questionCounts.mcq - currentCounts.MCQ, 0),
+      short: Math.max(questionCounts.short - currentCounts.short, 0),
+      essay: Math.max(questionCounts.essay - currentCounts.essay, 0)
+    };
+  };
+
+  const normalizeGeneratedQuestions = (generated = []) =>
+    generated.map(question => {
+      const normalizedType = normalizeQuestionType(question.questionType || question.type);
+
+      return {
+        ...question,
+        questionType: normalizedType,
+        optionA: question.optionA || '',
+        optionB: question.optionB || '',
+        optionC: question.optionC || '',
+        optionD: question.optionD || '',
+        correctAnswer: question.correctAnswer || question.answer || '',
+        explanation: question.explanation || ''
+      };
+    });
+
+  const totalQuestionTarget = questionCounts.mcq + questionCounts.short + questionCounts.essay;
+
   const fetchFiles = async () => {
     try {
       setFilesLoading(true);
@@ -116,6 +167,19 @@ export default function CreateQuizPage() {
       return;
     }
 
+    if (totalQuestionTarget <= 0) {
+      alert('문제 수를 1개 이상 입력해주세요');
+      return;
+    }
+
+    const remainingCounts = getRemainingCounts();
+    const remainingTotal = remainingCounts.mcq + remainingCounts.short + remainingCounts.essay;
+
+    if (remainingTotal <= 0) {
+      alert('이미 설정한 문제 수를 채웠습니다');
+      return;
+    }
+
     try {
       setGenerating(true);
       setError('');
@@ -145,7 +209,7 @@ export default function CreateQuizPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           fileIds: selectedFiles.length > 0 ? selectedFiles : null,
-          questionCount: questionCount - questions.length, // 남은 문제 수
+          questionCounts: remainingCounts,
           difficulty,
           quizTitle
         })
@@ -164,7 +228,8 @@ export default function CreateQuizPage() {
       setProgressMessage('생성 완료!');
 
       // 기존 수동 문제 + AI 생성 문제 합치기
-      const allQuestions = [...questions, ...data.questions];
+      const normalizedQuestions = normalizeGeneratedQuestions(data.questions);
+      const allQuestions = [...questions, ...normalizedQuestions];
 
       // 퀴즈 저장
       saveQuizMutation.mutate({
@@ -199,7 +264,7 @@ export default function CreateQuizPage() {
     }
 
     // 문제 추가
-    setQuestions([...questions, currentQuestion]);
+    setQuestions([...questions, { ...currentQuestion, questionType: 'MCQ' }]);
 
     // 현재 문제 초기화
     setCurrentQuestion({
@@ -214,9 +279,10 @@ export default function CreateQuizPage() {
   };
 
   const handleGenerateRemaining = async () => {
-    const remaining = questionCount - questions.length;
+    const remainingCounts = getRemainingCounts();
+    const remainingTotal = remainingCounts.mcq + remainingCounts.short + remainingCounts.essay;
 
-    if (remaining <= 0) {
+    if (remainingTotal <= 0) {
       alert('이미 설정한 문제 수를 채웠습니다');
       return;
     }
@@ -249,7 +315,7 @@ export default function CreateQuizPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           fileIds: selectedFiles.length > 0 ? selectedFiles : null,
-          questionCount: remaining,
+          questionCounts: remainingCounts,
           difficulty,
           quizTitle
         })
@@ -267,7 +333,8 @@ export default function CreateQuizPage() {
       setProgress(100);
       setProgressMessage('생성 완료!');
 
-      setQuestions([...questions, ...data.questions]);
+      const normalizedQuestions = normalizeGeneratedQuestions(data.questions);
+      setQuestions([...questions, ...normalizedQuestions]);
 
       // 0.3초 후 진행바 숨기기
       setTimeout(() => {
@@ -301,6 +368,9 @@ export default function CreateQuizPage() {
       fileIds: selectedFiles
     });
   };
+
+  const remainingCounts = getRemainingCounts();
+  const remainingTotal = remainingCounts.mcq + remainingCounts.short + remainingCounts.essay;
 
   // 초기 설정 화면
   if (creationMode === null) {
@@ -391,14 +461,35 @@ export default function CreateQuizPage() {
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               문제 수
             </label>
-            <input
-              type="number"
-              min="1"
-              max="50"
-              value={questionCount}
-              onChange={(e) => setQuestionCount(parseInt(e.target.value) || 10)}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-600 dark:bg-gray-700 dark:text-white"
-            />
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {[
+                { key: 'mcq', label: '객관식', helper: '4지선다형' },
+                { key: 'short', label: '단답형', helper: '짧은 정답 입력' },
+                { key: 'essay', label: '서술형', helper: '서술/에세이형' }
+              ].map(({ key, label, helper }) => (
+                <div key={key} className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{label}</span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">{helper}</span>
+                  </div>
+                  <input
+                    type="number"
+                    min="0"
+                    max="50"
+                    value={questionCounts[key]}
+                    onChange={(e) => {
+                      const parsed = parseInt(e.target.value, 10);
+                      const safeValue = Number.isNaN(parsed) ? 0 : Math.max(parsed, 0);
+                      setQuestionCounts(prev => ({ ...prev, [key]: safeValue }));
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-600 dark:bg-gray-700 dark:text-white"
+                  />
+                </div>
+              ))}
+            </div>
+            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+              총 문제 수: <span className="font-semibold text-primary-600 dark:text-primary-400">{totalQuestionTarget}</span>개
+            </p>
           </div>
 
           {/* 난이도 */}
@@ -435,7 +526,7 @@ export default function CreateQuizPage() {
             <div className="flex space-x-4">
               <button
                 onClick={handleAutoGenerate}
-                disabled={generating || !quizTitle.trim()}
+                disabled={generating || !quizTitle.trim() || totalQuestionTarget <= 0}
                 className="flex-1 bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-6 py-3 rounded-lg font-medium transition-colors"
               >
                 {generating ? 'AI 생성 중...' : '자동 생성 (AI)'}
@@ -502,7 +593,7 @@ export default function CreateQuizPage() {
 
       {/* 진행 상황 */}
       <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400 px-4 py-3 rounded-lg mb-5">
-        현재 {questions.length}개 문제 추가됨 (목표: {questionCount}개)
+        현재 {questions.length}개 문제 추가됨 (목표: {totalQuestionTarget}개)
       </div>
 
       {/* 문제 입력 폼 */}
@@ -592,10 +683,12 @@ export default function CreateQuizPage() {
       <div className="flex space-x-4">
         <button
           onClick={handleGenerateRemaining}
-          disabled={generating || questions.length >= questionCount}
+          disabled={generating || remainingTotal <= 0}
           className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-6 py-3 rounded-lg font-medium transition-colors"
         >
-          {generating ? 'AI 생성 중...' : `나머지 ${questionCount - questions.length}개 문제 자동 생성`}
+          {generating
+            ? 'AI 생성 중...'
+            : `나머지 ${remainingTotal}개 문제 자동 생성`}
         </button>
         <button
           onClick={handleSaveManualQuiz}
