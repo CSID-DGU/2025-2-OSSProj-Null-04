@@ -10,6 +10,7 @@ export default function QuizPage() {
   const roomId = params.roomId;
   const queryClient = useQueryClient();
   const [deletingQuizId, setDeletingQuizId] = useState(null);
+  const [downloadingQuizId, setDownloadingQuizId] = useState(null);
 
   // 퀴즈 목록 조회 (useQuery)
   const { data: quizzes = [], isLoading: loading, error } = useQuery({
@@ -65,8 +66,32 @@ export default function QuizPage() {
   });
 
   const handleDeleteQuiz = (quizId) => {
-    if (!confirm('해당 퀴즈를 삭제하시겠습니까?')) return;
+    if (!confirm('이 퀴즈를 삭제하시겠습니까?\n삭제된 퀴즈는 복구할 수 없습니다.')) return;
     deleteQuizMutation.mutate(quizId);
+  };
+
+  const handleDownloadQuiz = async (quiz) => {
+    setDownloadingQuizId(quiz.QuizID);
+    try {
+      // 퀴즈 문제 조회
+      const res = await fetch(`/api/quiz/${roomId}/${quiz.QuizID}`);
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || '퀴즈 정보를 불러올 수 없습니다');
+      }
+
+      // 정답지 포함 여부 확인
+      const includeAnswers = confirm('정답 및 해설을 포함하시겠습니까?');
+
+      // 동적 import로 DOCX 생성
+      const { generateQuizDocument } = await import('@/lib/docx/quizDocument');
+      await generateQuizDocument(quiz, data.questions, includeAnswers);
+    } catch (err) {
+      alert(`다운로드 실패: ${err.message}`);
+    } finally {
+      setDownloadingQuizId(null);
+    }
   };
 
   return (
@@ -146,24 +171,54 @@ export default function QuizPage() {
                 </p>
               </div>
               <div className="flex items-center gap-2">
+                {/* 다운로드 - 보조 액션 (아이콘) */}
                 <button
-                  onClick={() => handleTakeQuiz(quiz.QuizID)}
-                  className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-60"
-                  disabled={deleteQuizMutation.isPending && deletingQuizId === quiz.QuizID}
+                  onClick={() => handleDownloadQuiz(quiz)}
+                  className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors disabled:opacity-60"
+                  disabled={downloadingQuizId === quiz.QuizID}
+                  title="문제지 다운로드"
+                  aria-label="문제지 다운로드"
                 >
-                  퀴즈 풀기
+                  {downloadingQuizId === quiz.QuizID ? (
+                    <svg className="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                  ) : (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                  )}
                 </button>
+
+                {/* 삭제 - 위험 액션 (아이콘) */}
                 <button
                   onClick={() => handleDeleteQuiz(quiz.QuizID)}
-                  className="px-4 py-2 rounded-lg bg-red-100 hover:bg-red-200 text-red-700 transition-colors text-sm font-medium disabled:opacity-60"
+                  className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 transition-colors disabled:opacity-60"
                   disabled={deleteQuizMutation.isPending && deletingQuizId === quiz.QuizID}
+                  title="퀴즈 삭제"
                   aria-label="퀴즈 삭제"
                 >
                   {deleteQuizMutation.isPending && deletingQuizId === quiz.QuizID ? (
-                    <span className="text-xs px-1">삭제 중...</span>
+                    <svg className="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
                   ) : (
-                    <span className="px-1">삭제</span>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
                   )}
+                </button>
+
+                {/* 퀴즈 풀기 - 메인 액션 (부각, 오른쪽) */}
+                <button
+                  onClick={() => handleTakeQuiz(quiz.QuizID)}
+                  className="bg-primary-600 hover:bg-primary-700 text-white px-6 py-2.5 rounded-lg text-sm font-semibold transition-all shadow-sm hover:shadow disabled:opacity-60 flex items-center gap-2 ml-4"
+                  disabled={deleteQuizMutation.isPending && deletingQuizId === quiz.QuizID}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                  퀴즈 풀기
                 </button>
               </div>
             </div>

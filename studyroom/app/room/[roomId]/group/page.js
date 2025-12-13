@@ -325,8 +325,8 @@ export default function GroupPage() {
     setView('questions');
   };
 
-  // 문제 클릭 핸들러
-  const handleQuestionClick = (question) => {
+  // 문제 클릭 핸들러 (토론하기)
+  const handleQuestionClick = async (question) => {
     setSelectedQuestion(question);
     loadChatSession(question.QuestionID);
     setChatMessages([]);
@@ -334,19 +334,74 @@ export default function GroupPage() {
     setView('detail');
   };
 
-  // 많이 틀린 문제 클릭 핸들러 (재풀이 모드)
-  const handleWrongQuestionClick = (question) => {
+  // 재풀이 핸들러
+  const handleRetryQuestion = (question) => {
     setSelectedQuestion(question);
     setSelectedAnswer(null);
     setShowResult(false);
     setView('retry');
   };
 
+  // 많이 틀린 문제 - 재풀이
+  const handleWrongQuestionRetry = async (question) => {
+    setSelectedQuestion(question);
+    setSelectedAnswer(null);
+    setShowResult(false);
+
+    // 해당 퀴즈의 다른 문제도 로드 (컨텍스트 유지)
+    if (question.QuizID) {
+      try {
+        const res = await fetch(`/api/quiz/${roomId}/${question.QuizID}`);
+        const data = await res.json();
+        if (res.ok) {
+          setSelectedQuiz(data.quiz);
+          setQuestions(data.questions);
+        }
+      } catch (err) {
+        console.error('퀴즈 정보 로드 실패:', err);
+      }
+    }
+
+    setView('retry');
+  };
+
+  // 많이 틀린 문제 - 토론하기
+  const handleWrongQuestionDiscuss = async (question) => {
+    setSelectedQuestion(question);
+    loadChatSession(question.QuestionID);
+    setChatMessages([]);
+    setStreamingMessage('');
+
+    // 해당 퀴즈의 다른 문제도 로드 (컨텍스트 유지)
+    if (question.QuizID) {
+      try {
+        const res = await fetch(`/api/quiz/${roomId}/${question.QuizID}`);
+        const data = await res.json();
+        if (res.ok) {
+          setSelectedQuiz(data.quiz);
+          setQuestions(data.questions);
+        }
+      } catch (err) {
+        console.error('퀴즈 정보 로드 실패:', err);
+      }
+    }
+
+    setView('detail');
+  };
+
   // 뒤로가기 핸들러
   const handleBack = () => {
-    if (view === 'detail') {
-      setView('questions');
+    if (view === 'detail' || view === 'retry') {
+      if (selectedQuiz) {
+        // 퀴즈 컨텍스트가 있으면 문제 리스트로
+        setView('questions');
+      } else {
+        // 많이 틀린 문제에서 온 경우 메인으로
+        setView('main');
+      }
       setSelectedQuestion(null);
+      setSelectedAnswer(null);
+      setShowResult(false);
       setNewComment('');
       // 채팅 상태 초기화
       setChatSessionId(null);
@@ -357,11 +412,6 @@ export default function GroupPage() {
       setView('main');
       setSelectedQuiz(null);
       setQuestions([]);
-    } else if (view === 'retry') {
-      setView('main');
-      setSelectedQuestion(null);
-      setSelectedAnswer(null);
-      setShowResult(false);
     }
   };
 
@@ -534,8 +584,7 @@ export default function GroupPage() {
                   return (
                     <div
                       key={question.QuestionID}
-                      onClick={() => handleWrongQuestionClick(question)}
-                      className="group bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4 hover:bg-red-50 dark:hover:bg-red-900/10 cursor-pointer transition-all duration-200 border border-transparent hover:border-red-200 dark:hover:border-red-800"
+                      className="group bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4 transition-all duration-200 border border-transparent hover:border-red-200 dark:hover:border-red-800"
                     >
                       <div className="flex items-center gap-3">
                         <div className={`flex-shrink-0 w-8 h-8 bg-gradient-to-br ${getGradientColor()} text-white rounded-lg flex items-center justify-center font-bold text-sm shadow-sm`}>
@@ -566,9 +615,26 @@ export default function GroupPage() {
                             </span>
                           </div>
                         </div>
-                        <svg className="w-5 h-5 text-gray-300 dark:text-gray-600 group-hover:text-red-400 transition-colors flex-shrink-0 self-center" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                        </svg>
+                        <div className="flex gap-2 flex-shrink-0">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleWrongQuestionRetry(question);
+                            }}
+                            className="px-3 py-1.5 text-xs font-medium bg-orange-100 hover:bg-orange-200 dark:bg-orange-900/30 dark:hover:bg-orange-900/50 text-orange-700 dark:text-orange-400 rounded-lg transition-colors"
+                          >
+                            다시 풀기
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleWrongQuestionDiscuss(question);
+                            }}
+                            className="px-3 py-1.5 text-xs font-medium bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-400 rounded-lg transition-colors"
+                          >
+                            토론하기
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );
@@ -691,8 +757,7 @@ export default function GroupPage() {
                 {questions.map((question, index) => (
                   <div
                     key={question.QuestionID}
-                    onClick={() => handleQuestionClick(question)}
-                    className="group bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4 hover:bg-primary-50 dark:hover:bg-primary-900/10 cursor-pointer transition-all duration-200 border border-transparent hover:border-primary-200 dark:hover:border-primary-800"
+                    className="group bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4 transition-all duration-200 border border-transparent hover:border-primary-200 dark:hover:border-primary-800"
                   >
                     <div className="flex items-center gap-3">
                       <div className="flex-shrink-0 w-8 h-8 border-2 border-gray-300 dark:border-gray-500 text-gray-600 dark:text-gray-400 rounded-lg flex items-center justify-center font-semibold text-sm">
@@ -701,9 +766,26 @@ export default function GroupPage() {
                       <p className="flex-1 text-gray-900 dark:text-white line-clamp-2 text-sm">
                         {question.question}
                       </p>
-                      <svg className="w-5 h-5 text-gray-300 dark:text-gray-600 group-hover:text-primary-500 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
+                      <div className="flex gap-2 flex-shrink-0">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRetryQuestion(question);
+                          }}
+                          className="px-3 py-1.5 text-xs font-medium bg-orange-100 hover:bg-orange-200 dark:bg-orange-900/30 dark:hover:bg-orange-900/50 text-orange-700 dark:text-orange-400 rounded-lg transition-colors"
+                        >
+                          다시 풀기
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleQuestionClick(question);
+                          }}
+                          className="px-3 py-1.5 text-xs font-medium bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-400 rounded-lg transition-colors"
+                        >
+                          토론하기
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -742,36 +824,77 @@ export default function GroupPage() {
                 {selectedQuestion?.question}
               </p>
 
-              <div className="space-y-2">
-                {['A', 'B', 'C', 'D'].map((option) => {
-                  const optionText = selectedQuestion?.[`option${option}`];
-                  if (!optionText) return null;
-
-                  const isCorrect = selectedQuestion?.correctAnswer === option;
-
-                  return (
-                    <div
-                      key={option}
-                      className={`p-2.5 rounded-lg border-2 text-sm ${isCorrect
-                        ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
-                        : 'border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700'
-                        }`}
-                    >
-                      <span className="font-semibold text-gray-900 dark:text-white mr-2">
-                        {option}.
-                      </span>
-                      <span className="text-gray-900 dark:text-white">
-                        {optionText}
-                      </span>
-                      {isCorrect && (
-                        <span className="ml-2 text-green-600 dark:text-green-400 font-semibold">
-                          정답
-                        </span>
-                      )}
-                    </div>
-                  );
-                })}
+              {/* 문제 유형 표시 */}
+              <div className="flex items-center gap-2">
+                <span className={`px-2 py-0.5 rounded text-xs font-medium ${selectedQuestion?.questionType === 'short'
+                  ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+                  : selectedQuestion?.questionType === 'essay'
+                    ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
+                    : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                  }`}>
+                  {selectedQuestion?.questionType === 'short' ? '단답형'
+                    : selectedQuestion?.questionType === 'essay' ? '서술형'
+                      : '객관식'}
+                </span>
               </div>
+
+              {/* 객관식(MCQ): 선택지 표시 */}
+              {(!selectedQuestion?.questionType || selectedQuestion?.questionType === 'MCQ') && (
+                <div className="space-y-2">
+                  {['A', 'B', 'C', 'D'].map((option) => {
+                    const optionText = selectedQuestion?.[`option${option}`];
+                    if (!optionText) return null;
+
+                    const isCorrect = selectedQuestion?.correctAnswer === option;
+
+                    return (
+                      <div
+                        key={option}
+                        className={`p-2.5 rounded-lg border-2 text-sm ${isCorrect
+                          ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
+                          : 'border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700'
+                          }`}
+                      >
+                        <span className="font-semibold text-gray-900 dark:text-white mr-2">
+                          {option}.
+                        </span>
+                        <span className="text-gray-900 dark:text-white">
+                          {optionText}
+                        </span>
+                        {isCorrect && (
+                          <span className="ml-2 text-green-600 dark:text-green-400 font-semibold">
+                            정답
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* 단답형(short): 정답 표시 */}
+              {selectedQuestion?.questionType === 'short' && (
+                <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
+                  <p className="font-semibold text-green-800 dark:text-green-300 mb-1 text-sm">
+                    정답
+                  </p>
+                  <p className="text-green-700 dark:text-green-400 font-medium">
+                    {selectedQuestion.correctAnswer}
+                  </p>
+                </div>
+              )}
+
+              {/* 서술형(essay): 모범답안 표시 */}
+              {selectedQuestion?.questionType === 'essay' && (
+                <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
+                  <p className="font-semibold text-purple-800 dark:text-purple-300 mb-1 text-sm">
+                    모범답안
+                  </p>
+                  <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap text-sm">
+                    {selectedQuestion.correctAnswer}
+                  </p>
+                </div>
+              )}
 
               {selectedQuestion?.explanation && (
                 <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border-l-4 border-blue-500">
@@ -1023,89 +1146,155 @@ export default function GroupPage() {
               {selectedQuestion?.question}
             </p>
 
-            {/* 보기 */}
-            <div className="space-y-2">
-              {['A', 'B', 'C', 'D'].map((option) => {
-                const optionText = selectedQuestion?.[`option${option}`];
-                if (!optionText) return null;
+            {/* 문제 유형 표시 */}
+            <div className="flex items-center gap-2">
+              <span className={`px-2 py-0.5 rounded text-xs font-medium ${selectedQuestion?.questionType === 'short'
+                ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+                : selectedQuestion?.questionType === 'essay'
+                  ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
+                  : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                }`}>
+                {selectedQuestion?.questionType === 'short' ? '단답형'
+                  : selectedQuestion?.questionType === 'essay' ? '서술형'
+                    : '객관식'}
+              </span>
+            </div>
 
-                const isSelected = selectedAnswer === option;
-                const isCorrectAnswer = selectedQuestion?.correctAnswer === option;
+            {/* 객관식(MCQ): 보기 */}
+            {(!selectedQuestion?.questionType || selectedQuestion?.questionType === 'MCQ') && (
+              <div className="space-y-2">
+                {['A', 'B', 'C', 'D'].map((option) => {
+                  const optionText = selectedQuestion?.[`option${option}`];
+                  if (!optionText) return null;
 
-                let bgClass = 'border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700';
-                let textClass = '';
+                  const isSelected = selectedAnswer === option;
+                  const isCorrectAnswer = selectedQuestion?.correctAnswer === option;
 
-                if (showResult) {
-                  if (isCorrectAnswer) {
-                    bgClass = 'border-green-500 bg-green-50 dark:bg-green-900/20';
-                    textClass = 'text-green-600 dark:text-green-400';
-                  } else if (isSelected && !isCorrectAnswer) {
-                    bgClass = 'border-red-500 bg-red-50 dark:bg-red-900/20';
-                    textClass = 'text-red-600 dark:text-red-400';
+                  let bgClass = 'border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700';
+                  let textClass = '';
+
+                  if (showResult) {
+                    if (isCorrectAnswer) {
+                      bgClass = 'border-green-500 bg-green-50 dark:bg-green-900/20';
+                      textClass = 'text-green-600 dark:text-green-400';
+                    } else if (isSelected && !isCorrectAnswer) {
+                      bgClass = 'border-red-500 bg-red-50 dark:bg-red-900/20';
+                      textClass = 'text-red-600 dark:text-red-400';
+                    }
+                  } else if (isSelected) {
+                    bgClass = 'border-primary-500 bg-primary-50 dark:bg-primary-900/20';
                   }
-                } else if (isSelected) {
-                  bgClass = 'border-primary-500 bg-primary-50 dark:bg-primary-900/20';
-                }
 
-                return (
-                  <div
-                    key={option}
-                    onClick={() => handleAnswerSelect(option)}
-                    className={`p-4 rounded-lg border-2 ${bgClass} ${!showResult ? 'cursor-pointer hover:border-primary-400' : 'cursor-default'
-                      } transition-colors`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <span className="font-semibold text-gray-900 dark:text-white mr-2">
-                          {option}.
-                        </span>
-                        <span className="text-gray-900 dark:text-white">
-                          {optionText}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {isSelected && !showResult && (
-                          <span className="text-primary-600 dark:text-primary-400 font-semibold">
-                            선택됨
+                  return (
+                    <div
+                      key={option}
+                      onClick={() => handleAnswerSelect(option)}
+                      className={`p-4 rounded-lg border-2 ${bgClass} ${!showResult ? 'cursor-pointer hover:border-primary-400' : 'cursor-default'
+                        } transition-colors`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <span className="font-semibold text-gray-900 dark:text-white mr-2">
+                            {option}.
                           </span>
-                        )}
-                        {showResult && isCorrectAnswer && (
-                          <span className={`font-semibold ${textClass}`}>
-                            정답
+                          <span className="text-gray-900 dark:text-white">
+                            {optionText}
                           </span>
-                        )}
-                        {showResult && isSelected && !isCorrectAnswer && (
-                          <span className={`font-semibold ${textClass}`}>
-                            오답
-                          </span>
-                        )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {isSelected && !showResult && (
+                            <span className="text-primary-600 dark:text-primary-400 font-semibold">
+                              선택됨
+                            </span>
+                          )}
+                          {showResult && isCorrectAnswer && (
+                            <span className={`font-semibold ${textClass}`}>
+                              정답
+                            </span>
+                          )}
+                          {showResult && isSelected && !isCorrectAnswer && (
+                            <span className={`font-semibold ${textClass}`}>
+                              오답
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* 단답형(short): 텍스트 입력 */}
+            {selectedQuestion?.questionType === 'short' && (
+              <div className="space-y-3">
+                <input
+                  type="text"
+                  value={selectedAnswer || ''}
+                  onChange={(e) => !showResult && setSelectedAnswer(e.target.value)}
+                  disabled={showResult}
+                  placeholder="정답을 입력하세요"
+                  className="w-full p-3 border-2 border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:border-primary-500 disabled:bg-gray-100 dark:disabled:bg-gray-600"
+                />
+                {showResult && (
+                  <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
+                    <p className="text-sm text-green-800 dark:text-green-300 font-medium">정답: {selectedQuestion.correctAnswer}</p>
                   </div>
-                );
-              })}
-            </div>
+                )}
+              </div>
+            )}
+
+            {/* 서술형(essay): textarea 입력 */}
+            {selectedQuestion?.questionType === 'essay' && (
+              <div className="space-y-3">
+                <textarea
+                  value={selectedAnswer || ''}
+                  onChange={(e) => !showResult && setSelectedAnswer(e.target.value)}
+                  disabled={showResult}
+                  placeholder="답안을 작성하세요"
+                  rows={6}
+                  className="w-full p-3 border-2 border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:border-primary-500 disabled:bg-gray-100 dark:disabled:bg-gray-600 resize-none"
+                />
+                {showResult && (
+                  <div className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
+                    <p className="text-sm font-medium text-purple-800 dark:text-purple-300 mb-1">모범답안:</p>
+                    <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap text-sm">{selectedQuestion.correctAnswer}</p>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* 결과 및 해설 */}
             {showResult && (
               <div className="space-y-4 mt-6">
-                {/* 결과 표시 */}
-                <div className={`p-4 rounded-lg border-l-4 ${isCorrect
-                  ? 'bg-green-50 dark:bg-green-900/20 border-green-500'
-                  : 'bg-red-50 dark:bg-red-900/20 border-red-500'
-                  }`}>
-                  <p className={`font-semibold text-lg ${isCorrect
-                    ? 'text-green-900 dark:text-green-300'
-                    : 'text-red-900 dark:text-red-300'
+                {/* 결과 표시 - 객관식/단답형만 정답 여부 표시 */}
+                {(selectedQuestion?.questionType !== 'essay') && (
+                  <div className={`p-4 rounded-lg border-l-4 ${isCorrect
+                    ? 'bg-green-50 dark:bg-green-900/20 border-green-500'
+                    : 'bg-red-50 dark:bg-red-900/20 border-red-500'
                     }`}>
-                    {isCorrect ? '정답입니다!' : '오답입니다.'}
-                  </p>
-                  {isWrong && (
-                    <p className="text-gray-700 dark:text-gray-300 mt-1">
-                      정답은 <strong>{selectedQuestion?.correctAnswer}</strong>번입니다.
+                    <p className={`font-semibold text-lg ${isCorrect
+                      ? 'text-green-900 dark:text-green-300'
+                      : 'text-red-900 dark:text-red-300'
+                      }`}>
+                      {isCorrect ? '정답입니다!' : '오답입니다.'}
                     </p>
-                  )}
-                </div>
+                    {isWrong && selectedQuestion?.questionType !== 'short' && (
+                      <p className="text-gray-700 dark:text-gray-300 mt-1">
+                        정답은 <strong>{selectedQuestion?.correctAnswer}</strong>번입니다.
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* 서술형은 AI 채점 불가 안내 */}
+                {selectedQuestion?.questionType === 'essay' && (
+                  <div className="p-4 rounded-lg border-l-4 bg-gray-50 dark:bg-gray-700 border-gray-400">
+                    <p className="font-semibold text-gray-900 dark:text-gray-100">
+                      서술형 문제는 모범답안을 참고하여 스스로 채점해보세요.
+                    </p>
+                  </div>
+                )}
 
                 {/* 해설 */}
                 {selectedQuestion?.explanation && (

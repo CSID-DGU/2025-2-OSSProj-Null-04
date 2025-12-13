@@ -82,7 +82,7 @@ const limitQuestionsByType = (questions, counts) => {
     usage[type] += 1;
     filtered.push({ ...question, questionType: type });
 
-    const remainingTotal = quotas.MCQ + quotas.SHORT + quotas.ESSAY - (usage.MCQ + usage.SHORT + usage.ESSAY);
+    const remainingTotal = quotas.MCQ + quotas.short + quotas.essay - (usage.MCQ + usage.short + usage.essay);
     if (remainingTotal <= 0) break;
   }
 
@@ -145,20 +145,40 @@ export async function POST(request) {
 
 다음 학습 자료를 바탕으로 위 주제에 관한 총 ${totalQuestions}개의 문제를 생성해주세요.
 
-**중요:** 학습 자료에 직접적인 내용이 없더라도, 위 주제와 관련된 문제를 반드시 포함해야 합니다.
-
 학습 자료:
 ${context}
 
+**중요한 문제 작성 원칙:**
+1. **문제는 반드시 자기완결적이어야 합니다**
+   - 문제만 보고도 풀 수 있어야 함
+   - 필요한 모든 정보를 문제 내에 포함
+   - "자료에서", "참고 자료에 따르면" 등의 표현 금지
+   
+2. **구체적인 정보 제공**
+   - 추상적인 질문 대신 구체적인 상황/데이터 제시
+   - 예: "~~는 어떻게 구현했을까요?" (X)
+   - 예: "다음 코드에서 사용된 알고리즘은?" (O, 코드 포함)
+
+3. **해설 작성 가이드**
+   - "자료에 표시된 대로", "참고 자료의" 등의 표현 사용 금지
+   - 개념과 원리를 직접 설명
+   - 왜 그 답이 맞는지 명확히 설명
+
+4. **객관식 문제 작성 규칙 (매우 중요!)**
+   - question 필드: 질문 내용만 작성 (선택지 포함하지 않음)
+   - 선택지는 반드시 optionA, optionB, optionC, optionD 필드에 분리
+   - 잘못된 예: question에 "A. 답1 B. 답2 ..." 포함
+   - 올바른 예: question은 질문만, optionA="답1", optionB="답2"로 분리
+
 요구사항:
 - 주제 "${quizTitle || '학습 자료'}"를 반드시 반영한 문제 생성
-- **시험에 나올 만한 문제**, 문제 풀이로 원리를 이해할 수 있는 문제, 문제 풀이로 관련 내용을 정리할 수 있는 문제
-- 총 ${totalQuestions}개의 문제 (학습 자료 기반 + 주제 관련)
+- **시험에 나올 만한 문제**, 문제 풀이로 원리를 이해할 수 있는 문제
+- 총 ${totalQuestions}개의 문제
 - 타입별 문제 개수:
 ${typeRequirementText}
-- MCQ 문제의 경우 선택지 4개(A,B,C,D)와 해설 포함, 정답은 A/B/C/D로 분산
-- SHORT 문제의 경우 짧은 정답 텍스트와 해설 포함
-- ESSAY 문제의 경우 서술형 답변을 평가할 수 있는 핵심 포인트나 채점 기준과 함께 해설 포함
+- MCQ: 선택지 4개(A,B,C,D), 정답은 A/B/C/D로 고르게 분산
+- SHORT: 짧고 명확한 정답
+- ESSAY: 핵심 개념을 평가하는 모범답안
 - 난이도: ${difficultyText}
 
 응답 형식 (JSON):
@@ -166,25 +186,25 @@ ${typeRequirementText}
   "questions": [
     {
       "questionType": "MCQ",
-      "question": "문제 내용",
-      "optionA": "선택지 A",
-      "optionB": "선택지 B",
-      "optionC": "선택지 C",
-      "optionD": "선택지 D",
+      "question": "자기완결적인 질문 내용만 작성 (선택지는 절대 포함하지 않음)",
+      "optionA": "첫 번째 선택지",
+      "optionB": "두 번째 선택지",
+      "optionC": "세 번째 선택지",
+      "optionD": "네 번째 선택지",
       "correctAnswer": "A",
-      "explanation": "해설 내용"
+      "explanation": "개념을 직접 설명하는 해설 (참고자료 언급 없이)"
     },
     {
       "questionType": "SHORT",
-      "question": "문제 내용",
+      "question": "자기완결적인 문제 내용",
       "correctAnswer": "정답 텍스트",
-      "explanation": "해설 내용"
+      "explanation": "개념 직접 설명"
     },
     {
       "questionType": "ESSAY",
-      "question": "문제 내용",
+      "question": "자기완결적인 문제 내용",
       "correctAnswer": "모범답안/핵심 포인트",
-      "explanation": "해설 내용"
+      "explanation": "개념 직접 설명"
     }
   ]
 }`;
@@ -196,15 +216,33 @@ ${typeRequirementText}
 
       userPrompt = `주제: "${quizTitle}"
 
-위 주제에 대한 총 ${totalQuestions}개의 문제를 생성해주세요.
+위 주제에 대한 총 ${totalQuestions}개의 자기완결적인 문제를 생성해주세요.
+
+**중요한 문제 작성 원칙:**
+1. **문제는 반드시 자기완결적이어야 합니다**
+   - 문제만 보고도 풀 수 있어야 함
+   - 필요한 모든 정보를 문제 내에 포함
+   
+2. **구체적인 정보 제공**
+   - 추상적인 질문 대신 구체적인 상황/데이터 제시
+   
+3. **해설은 개념을 직접 설명**
+   - 왜 그 답이 맞는지 명확히 설명
+
+4. **객관식 문제 작성 규칙 (매우 중요!)**
+   - question 필드: 질문 내용만 작성 (선택지 포함하지 않음)
+   - 선택지는 반드시 optionA, optionB, optionC, optionD 필드에 분리
+   - 잘못된 예: question에 "A. 답1 B. 답2 ..." 포함
+   - 올바른 예: question은 질문만, optionA="답1", optionB="답2"로 분리
 
 요구사항:
 - 주제 "${quizTitle}"와 관련된 실용적이고 교육적인 문제
-- **시험에 나올 만한 문제**, 문제 풀이로 원리를 이해할 수 있는 문제, 문제 풀이로 관련 내용을 정리할 수 있는 문제
+- **시험에 나올 만한 문제**, 문제 풀이로 원리를 이해할 수 있는 문제
 - 총 ${totalQuestions}개의 문제를 생성하고, 아래 타입별 개수를 반드시 맞추기
 ${typeRequirementText}
-- MCQ 문제는 4개의 선택지 (A, B, C, D)를 가지며 정답을 A/B/C/D에 분산
-- SHORT 문제는 짧은 정답 텍스트, ESSAY 문제는 서술형 답안을 평가할 포인트와 함께 제공
+- MCQ: 4개 선택지 (A, B, C, D), 정답을 A/B/C/D에 고르게 분산
+- SHORT: 짧고 명확한 정답
+- ESSAY: 핵심 개념을 평가하는 모범답안
 - 모든 오답 선택지는 그럴듯하고 비슷한 길이여야 함
 - 난이도: ${difficultyText}
 - 각 문제에 대한 상세한 해설 포함
@@ -214,25 +252,25 @@ ${typeRequirementText}
   "questions": [
     {
       "questionType": "MCQ",
-      "question": "문제 내용",
+      "question": "자기완결적인 문제 내용",
       "optionA": "선택지 A",
       "optionB": "선택지 B",
       "optionC": "선택지 C",
       "optionD": "선택지 D",
       "correctAnswer": "A",
-      "explanation": "해설 내용"
+      "explanation": "개념을 직접 설명하는 해설"
     },
     {
       "questionType": "SHORT",
-      "question": "문제 내용",
+      "question": "자기완결적인 문제 내용",
       "correctAnswer": "정답 텍스트",
-      "explanation": "해설 내용"
+      "explanation": "개념 직접 설명"
     },
     {
       "questionType": "ESSAY",
-      "question": "문제 내용",
+      "question": "자기완결적인 문제 내용",
       "correctAnswer": "모범답안/핵심 포인트",
-      "explanation": "해설 내용"
+      "explanation": "개념 직접 설명"
     }
   ]
 }`;
