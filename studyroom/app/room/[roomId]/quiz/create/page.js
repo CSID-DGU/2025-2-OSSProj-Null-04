@@ -27,6 +27,7 @@ export default function CreateQuizPage() {
 
   // 문제 목록 (수동 추가 + AI 생성)
   const [questions, setQuestions] = useState([]);
+  const [currentQuestionType, setCurrentQuestionType] = useState('MCQ'); // 'MCQ', 'short', 'essay'
   const [currentQuestion, setCurrentQuestion] = useState({
     question: '',
     optionA: '',
@@ -253,20 +254,49 @@ export default function CreateQuizPage() {
       alert('문제를 입력해주세요');
       return;
     }
-    if (!currentQuestion.optionA.trim() || !currentQuestion.optionB.trim() ||
-      !currentQuestion.optionC.trim() || !currentQuestion.optionD.trim()) {
-      alert('모든 선택지를 입력해주세요');
-      return;
-    }
-    if (!currentQuestion.correctAnswer) {
-      alert('정답을 선택해주세요');
-      return;
+
+    // 문제 유형별 검증
+    if (currentQuestionType === 'MCQ') {
+      if (!currentQuestion.optionA.trim() || !currentQuestion.optionB.trim() ||
+        !currentQuestion.optionC.trim() || !currentQuestion.optionD.trim()) {
+        alert('모든 선택지를 입력해주세요');
+        return;
+      }
+      if (!currentQuestion.correctAnswer || !['A', 'B', 'C', 'D'].includes(currentQuestion.correctAnswer)) {
+        alert('정답을 선택해주세요');
+        return;
+      }
+    } else if (currentQuestionType === 'short') {
+      if (!currentQuestion.correctAnswer.trim()) {
+        alert('정답을 입력해주세요');
+        return;
+      }
+    } else if (currentQuestionType === 'essay') {
+      if (!currentQuestion.correctAnswer.trim()) {
+        alert('모범답안을 입력해주세요');
+        return;
+      }
     }
 
-    // 문제 추가
-    setQuestions([...questions, { ...currentQuestion, questionType: 'MCQ' }]);
+    // 문제 추가 (문제 유형에 따라 다른 필드 포함)
+    const newQuestion = {
+      question: currentQuestion.question,
+      correctAnswer: currentQuestion.correctAnswer,
+      explanation: currentQuestion.explanation,
+      questionType: currentQuestionType
+    };
 
-    // 현재 문제 초기화
+    // 객관식인 경우에만 선택지 포함
+    if (currentQuestionType === 'MCQ') {
+      newQuestion.optionA = currentQuestion.optionA;
+      newQuestion.optionB = currentQuestion.optionB;
+      newQuestion.optionC = currentQuestion.optionC;
+      newQuestion.optionD = currentQuestion.optionD;
+    }
+
+    setQuestions([...questions, newQuestion]);
+
+    // 현재 문제 초기화 (문제 유형은 유지)
     setCurrentQuestion({
       question: '',
       optionA: '',
@@ -602,6 +632,36 @@ export default function CreateQuizPage() {
           문제 {questions.length + 1} 입력
         </h2>
 
+        {/* 문제 유형 선택 */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            문제 유형
+          </label>
+          <div className="flex space-x-4">
+            {[
+              { value: 'MCQ', label: '객관식' },
+              { value: 'short', label: '단답형' },
+              { value: 'essay', label: '서술형' }
+            ].map(option => (
+              <label key={option.value} className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="questionType"
+                  value={option.value}
+                  checked={currentQuestionType === option.value}
+                  onChange={(e) => {
+                    setCurrentQuestionType(e.target.value);
+                    // 유형 변경 시 정답 초기화
+                    setCurrentQuestion({ ...currentQuestion, correctAnswer: '' });
+                  }}
+                  className="w-4 h-4 text-primary-600 border-gray-300 focus:ring-primary-500"
+                />
+                <span className="text-gray-700 dark:text-gray-300">{option.label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
         {/* 문제 */}
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -616,45 +676,87 @@ export default function CreateQuizPage() {
           />
         </div>
 
-        {/* 선택지 */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {['A', 'B', 'C', 'D'].map(option => (
-            <div key={option}>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                선택지 {option}
-              </label>
-              <input
-                type="text"
-                value={currentQuestion[`option${option}`]}
-                onChange={(e) => setCurrentQuestion({ ...currentQuestion, [`option${option}`]: e.target.value })}
-                placeholder={`선택지 ${option} 입력`}
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-600 dark:bg-gray-700 dark:text-white"
-              />
-            </div>
-          ))}
-        </div>
-
-        {/* 정답 선택 */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            정답
-          </label>
-          <div className="flex space-x-4">
+        {/* 객관식: 선택지 */}
+        {currentQuestionType === 'MCQ' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {['A', 'B', 'C', 'D'].map(option => (
-              <label key={option} className="flex items-center space-x-2 cursor-pointer">
+              <div key={option}>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  선택지 {option}
+                </label>
                 <input
-                  type="radio"
-                  name="correctAnswer"
-                  value={option}
-                  checked={currentQuestion.correctAnswer === option}
-                  onChange={(e) => setCurrentQuestion({ ...currentQuestion, correctAnswer: e.target.value })}
-                  className="w-4 h-4 text-primary-600 border-gray-300 focus:ring-primary-500"
+                  type="text"
+                  value={currentQuestion[`option${option}`]}
+                  onChange={(e) => setCurrentQuestion({ ...currentQuestion, [`option${option}`]: e.target.value })}
+                  placeholder={`선택지 ${option} 입력`}
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-600 dark:bg-gray-700 dark:text-white"
                 />
-                <span className="text-gray-700 dark:text-gray-300">{option}</span>
-              </label>
+              </div>
             ))}
           </div>
-        </div>
+        )}
+
+        {/* 객관식: 정답 선택 */}
+        {currentQuestionType === 'MCQ' && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              정답
+            </label>
+            <div className="flex space-x-4">
+              {['A', 'B', 'C', 'D'].map(option => (
+                <label key={option} className="flex items-center space-x-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="correctAnswer"
+                    value={option}
+                    checked={currentQuestion.correctAnswer === option}
+                    onChange={(e) => setCurrentQuestion({ ...currentQuestion, correctAnswer: e.target.value })}
+                    className="w-4 h-4 text-primary-600 border-gray-300 focus:ring-primary-500"
+                  />
+                  <span className="text-gray-700 dark:text-gray-300">{option}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 단답형: 정답 입력 */}
+        {currentQuestionType === 'short' && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              정답
+            </label>
+            <input
+              type="text"
+              value={currentQuestion.correctAnswer}
+              onChange={(e) => setCurrentQuestion({ ...currentQuestion, correctAnswer: e.target.value })}
+              placeholder="정답을 입력하세요 (예: 광합성)"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-600 dark:bg-gray-700 dark:text-white"
+            />
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              채점 시 대소문자, 공백을 무시하고 비교합니다
+            </p>
+          </div>
+        )}
+
+        {/* 서술형: 모범답안 입력 */}
+        {currentQuestionType === 'essay' && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              모범답안 / 채점 기준
+            </label>
+            <textarea
+              value={currentQuestion.correctAnswer}
+              onChange={(e) => setCurrentQuestion({ ...currentQuestion, correctAnswer: e.target.value })}
+              rows="4"
+              placeholder="모범답안 또는 채점 시 확인할 핵심 포인트를 입력하세요"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-600 dark:bg-gray-700 dark:text-white"
+            />
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              AI가 학생 답안과 모범답안을 비교하여 채점합니다
+            </p>
+          </div>
+        )}
 
         {/* 해설 */}
         <div>

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
+import QuestionText from '@/components/QuestionText';
 
 export default function TakeQuizPage() {
   const router = useRouter();
@@ -13,13 +14,11 @@ export default function TakeQuizPage() {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [userAnswers, setUserAnswers] = useState({});
   const [selectedAnswer, setSelectedAnswer] = useState('');
-  const [showResult, setShowResult] = useState(false);
-  const [isCorrect, setIsCorrect] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [quizCompleted, setQuizCompleted] = useState(false);
-  const [finalScore, setFinalScore] = useState(null);
+  const [gradingResults, setGradingResults] = useState(null); // 채점 결과
 
   useEffect(() => {
     fetchQuiz();
@@ -47,39 +46,35 @@ export default function TakeQuizPage() {
 
   const currentQuestion = questions[currentQuestionIndex];
 
-  const handleAnswerSelect = (answer) => {
-    if (showResult) return; // 이미 확인한 문제는 선택 불가
+  const handleAnswerChange = (answer) => {
     setSelectedAnswer(answer);
-  };
-
-  const handleConfirm = () => {
-    if (!selectedAnswer) {
-      alert('답을 선택해주세요');
-      return;
-    }
-
-    // 정답 확인
-    const correct = selectedAnswer === currentQuestion.correctAnswer;
-    setIsCorrect(correct);
-    setShowResult(true);
-
-    // 답안 저장
     setUserAnswers({
       ...userAnswers,
-      [currentQuestion.QuestionID]: selectedAnswer
+      [currentQuestion.QuestionID]: answer
     });
   };
 
   const handleNext = () => {
+    if (!selectedAnswer && !userAnswers[currentQuestion.QuestionID]) {
+      alert('답을 선택하거나 입력해주세요');
+      return;
+    }
+
     if (currentQuestionIndex < questions.length - 1) {
       // 다음 문제로
       setCurrentQuestionIndex(currentQuestionIndex + 1);
-      setSelectedAnswer('');
-      setShowResult(false);
-      setIsCorrect(false);
+      // 다음 문제에 이미 답변이 있으면 불러오기
+      setSelectedAnswer(userAnswers[questions[currentQuestionIndex + 1].QuestionID] || '');
     } else {
-      // 마지막 문제 - 제출
-      submitQuiz();
+      // 마지막 문제
+      // 아직 아무것도 하지 않음 (채점하기 버튼으로 제출)
+    }
+  };
+
+  const handlePrevious = () => {
+    if (currentQuestionIndex > 0) {
+      setCurrentQuestionIndex(currentQuestionIndex - 1);
+      setSelectedAnswer(userAnswers[questions[currentQuestionIndex - 1].QuestionID] || '');
     }
   };
 
@@ -87,16 +82,10 @@ export default function TakeQuizPage() {
     try {
       setSubmitting(true);
 
-      // 모든 답안 배열로 변환
-      const answers = questions.map(q => ({
-        questionId: q.QuestionID,
-        userAnswer: userAnswers[q.QuestionID] || ''
-      }));
-
       const res = await fetch(`/api/quiz/${roomId}/${quizId}/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ answers })
+        body: JSON.stringify({ userAnswers })
       });
 
       const data = await res.json();
@@ -105,7 +94,7 @@ export default function TakeQuizPage() {
         throw new Error(data.error || '제출에 실패했습니다');
       }
 
-      setFinalScore(data);
+      setGradingResults(data);
       setQuizCompleted(true);
     } catch (err) {
       alert(err.message);
@@ -146,26 +135,98 @@ export default function TakeQuizPage() {
   }
 
   // 퀴즈 완료 화면
-  if (quizCompleted && finalScore) {
+  if (quizCompleted && gradingResults) {
     return (
       <div className="p-5 max-w-5xl mx-auto">
-        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-8 text-center">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
-            퀴즈 완료!
-          </h2>
-          <div className="text-5xl font-bold text-primary-600 mb-4">
-            {finalScore.score}점
+        {/* 점수 요약 */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-8 mb-6">
+          <div className="text-center mb-6">
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
+              퀴즈 완료!
+            </h2>
+            <div className="text-5xl font-bold text-primary-600 mb-4">
+              {gradingResults.score}점
+            </div>
+            <p className="text-gray-600 dark:text-gray-400 mb-6">
+              {gradingResults.correctCount}/{gradingResults.totalCount} 문제 정답
+            </p>
           </div>
-          <p className="text-gray-600 dark:text-gray-400 mb-6">
-            {finalScore.correctCount}/{finalScore.totalCount} 문제 정답
-          </p>
-          <button
-            onClick={handleBackToQuizList}
-            className="bg-primary-600 hover:bg-primary-700 text-white px-6 py-3 rounded-lg font-medium transition-colors"
-          >
-            퀴즈 목록으로 돌아가기
-          </button>
         </div>
+
+        {/* 문제별 결과 */}
+        <div className="space-y-4 mb-6">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
+            문제별 결과
+          </h3>
+          {questions.map((question, index) => {
+            const result = gradingResults.results.find(r => r.questionId === question.QuestionID);
+            const userAnswer = userAnswers[question.QuestionID] || '(미작성)';
+            const isCorrect = result?.isCorrect;
+
+            return (
+              <div
+                key={question.QuestionID}
+                className={`bg-white dark:bg-gray-800 rounded-lg border-2 p-5 ${isCorrect
+                  ? 'border-green-500 bg-green-50/50 dark:bg-green-900/10'
+                  : 'border-red-500 bg-red-50/50 dark:bg-red-900/10'
+                  }`}
+              >
+                <div className="flex items-start gap-3 mb-3">
+                  <div className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm ${isCorrect ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
+                    }`}>
+                    {index + 1}
+                  </div>
+                  <div className="flex-1">
+                    <QuestionText
+                      text={question.question}
+                      className="font-medium text-gray-900 dark:text-white mb-2"
+                    />
+                    <div className="space-y-2 text-sm">
+                      <div>
+                        <span className="font-semibold text-gray-700 dark:text-gray-300">내 답변: </span>
+                        <span className="text-gray-600 dark:text-gray-400">{userAnswer}</span>
+                      </div>
+                      {!isCorrect && (
+                        <div>
+                          <span className="font-semibold text-gray-700 dark:text-gray-300">정답: </span>
+                          <span className="text-gray-600 dark:text-gray-400">
+                            {question.questionType === 'MCQ'
+                              ? `${question.correctAnswer}) ${question[`option${question.correctAnswer}`]}`
+                              : question.correctAnswer}
+                          </span>
+                        </div>
+                      )}
+                      {result?.feedback && (
+                        <div className={`p-3 rounded-lg mt-2 ${isCorrect
+                          ? 'bg-green-100 dark:bg-green-900/20 border border-green-200 dark:border-green-800'
+                          : 'bg-red-100 dark:bg-red-900/20 border border-red-200 dark:border-red-800'
+                          }`}>
+                          <p className={`text-sm ${isCorrect ? 'text-green-800 dark:text-green-300' : 'text-red-800 dark:text-red-300'
+                            }`}>
+                            {result.feedback}
+                          </p>
+                        </div>
+                      )}
+                      {question.explanation && (
+                        <div className="mt-2 p-3 bg-gray-100 dark:bg-gray-700 rounded-lg">
+                          <p className="font-semibold text-gray-700 dark:text-gray-300 mb-1">해설:</p>
+                          <p className="text-gray-600 dark:text-gray-400">{question.explanation}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <button
+          onClick={handleBackToQuizList}
+          className="w-full bg-primary-600 hover:bg-primary-700 text-white px-6 py-3 rounded-lg font-medium transition-colors"
+        >
+          퀴즈 목록으로 돌아가기
+        </button>
       </div>
     );
   }
@@ -198,93 +259,109 @@ export default function TakeQuizPage() {
 
       {/* 문제 카드 */}
       <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-5 mb-5">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">
-          {currentQuestion.question}
-        </h2>
-
-        {/* 선택지 */}
-        <div className="space-y-3">
-          {['A', 'B', 'C', 'D'].map((option) => {
-            const optionText = currentQuestion[`option${option}`];
-            const isSelected = selectedAnswer === option;
-            const isCorrectAnswer = showResult && currentQuestion.correctAnswer === option;
-            const isWrongAnswer = showResult && isSelected && !isCorrect;
-
-            let buttonClass = 'w-full text-left p-4 rounded-lg border-2 transition-all ';
-
-            if (showResult) {
-              if (isCorrectAnswer) {
-                buttonClass += 'border-green-500 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400';
-              } else if (isWrongAnswer) {
-                buttonClass += 'border-red-500 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400';
-              } else {
-                buttonClass += 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-500';
-              }
-            } else {
-              if (isSelected) {
-                buttonClass += 'border-primary-600 bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-400';
-              } else {
-                buttonClass += 'border-gray-200 dark:border-gray-700 hover:border-primary-400 text-gray-700 dark:text-gray-300';
-              }
-            }
-
-            return (
-              <button
-                key={option}
-                onClick={() => handleAnswerSelect(option)}
-                disabled={showResult}
-                className={buttonClass}
-              >
-                <div className="flex items-center">
-                  <span className="font-semibold mr-3">{option}.</span>
-                  <span>{optionText}</span>
-                  {showResult && isCorrectAnswer && <span className="ml-auto text-xl">✓</span>}
-                  {showResult && isWrongAnswer && <span className="ml-auto text-xl">✗</span>}
-                </div>
-              </button>
-            );
-          })}
+        <div className="flex items-center gap-2 mb-4">
+          <span className={`px-2 py-0.5 rounded text-xs font-medium ${currentQuestion.questionType === 'short'
+            ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+            : currentQuestion.questionType === 'essay'
+              ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
+              : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+            }`}>
+            {currentQuestion.questionType === 'short' ? '단답형'
+              : currentQuestion.questionType === 'essay' ? '서술형'
+                : '객관식'}
+          </span>
         </div>
 
-        {/* 정답/오답 메시지 */}
-        {showResult && (
-          <div className={`mt-6 p-4 rounded-lg ${isCorrect
-            ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800'
-            : 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800'
-            }`}>
-            <p className={`font-semibold mb-2 ${isCorrect ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'
-              }`}>
-              {isCorrect ? '✓ 정답입니다!' : '✗ 오답입니다.'}
-            </p>
-            {currentQuestion.explanation && (
-              <div className="text-gray-700 dark:text-gray-300">
-                <p className="font-medium mb-1">해설:</p>
-                <p>{currentQuestion.explanation}</p>
-              </div>
-            )}
+        <QuestionText
+          text={currentQuestion.question}
+          className="text-lg font-semibold text-gray-900 dark:text-white mb-6"
+        />
+
+        {/* 객관식(MCQ): 선택지 */}
+        {(!currentQuestion.questionType || currentQuestion.questionType === 'MCQ') && (
+          <div className="space-y-3">
+            {['A', 'B', 'C', 'D'].map((option) => {
+              const optionText = currentQuestion[`option${option}`];
+              if (!optionText) return null;
+
+              const isSelected = selectedAnswer === option;
+
+              return (
+                <button
+                  key={option}
+                  onClick={() => handleAnswerChange(option)}
+                  className={`w-full text-left p-4 rounded-lg border-2 transition-all ${isSelected
+                    ? 'border-primary-600 bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-400'
+                    : 'border-gray-200 dark:border-gray-700 hover:border-primary-400 text-gray-700 dark:text-gray-300'
+                    }`}
+                >
+                  <div className="flex items-center">
+                    <span className="font-semibold mr-3">{option}.</span>
+                    <span>{optionText}</span>
+                    {isSelected && <span className="ml-auto text-xl">✓</span>}
+                  </div>
+                </button>
+              );
+            })}
           </div>
         )}
+
+        {/* 단답형(short): 텍스트 입력 */}
+        {currentQuestion.questionType === 'short' && (
+          <div className="space-y-3">
+            <input
+              type="text"
+              value={selectedAnswer}
+              onChange={(e) => handleAnswerChange(e.target.value)}
+              placeholder="정답을 입력하세요"
+              className="w-full p-4 border-2 border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:border-primary-500"
+            />
+          </div>
+        )}
+
+        {/* 서술형(essay): textarea 입력 */}
+        {currentQuestion.questionType === 'essay' && (
+          <div className="space-y-3">
+            <textarea
+              value={selectedAnswer}
+              onChange={(e) => handleAnswerChange(e.target.value)}
+              placeholder="답안을 작성하세요"
+              rows={6}
+              className="w-full p-4 border-2 border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:border-primary-500 resize-none"
+            />
+          </div>
+        )}
+
+
       </div>
 
       {/* 버튼 영역 */}
-      <div className="flex justify-end">
-        {!showResult ? (
-          <button
-            onClick={handleConfirm}
-            disabled={!selectedAnswer}
-            className="bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-6 py-3 rounded-lg font-medium transition-colors"
-          >
-            확인
-          </button>
-        ) : (
-          <button
-            onClick={handleNext}
-            disabled={submitting}
-            className="bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 text-white px-6 py-3 rounded-lg font-medium transition-colors"
-          >
-            {submitting ? '제출 중...' : currentQuestionIndex < questions.length - 1 ? '다음 문제' : '제출하기'}
-          </button>
-        )}
+      <div className="flex justify-between">
+        <button
+          onClick={handlePrevious}
+          disabled={currentQuestionIndex === 0}
+          className="px-6 py-3 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          ← 이전
+        </button>
+        <div className="flex gap-2">
+          {currentQuestionIndex < questions.length - 1 ? (
+            <button
+              onClick={handleNext}
+              className="bg-primary-600 hover:bg-primary-700 text-white px-6 py-3 rounded-lg font-medium transition-colors"
+            >
+              다음 →
+            </button>
+          ) : (
+            <button
+              onClick={submitQuiz}
+              disabled={submitting}
+              className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white px-6 py-3 rounded-lg font-medium transition-colors"
+            >
+              {submitting ? '채점 중...' : '채점하기'}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
