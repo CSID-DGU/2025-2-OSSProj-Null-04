@@ -30,6 +30,7 @@ export async function GET(request, { params }) {
       .from('Quiz')
       .select(`
         QuizID,
+        CreatedAt,
         QuizTitle,
         Question (
           QuestionID
@@ -44,6 +45,7 @@ export async function GET(request, { params }) {
     const quizList = quizzes.map(quiz => ({
       QuizID: quiz.QuizID,
       QuizTitle: quiz.QuizTitle,
+      CreatedAt: quiz.CreatedAt,
       questionCount: quiz.Question?.length || 0
     }));
 
