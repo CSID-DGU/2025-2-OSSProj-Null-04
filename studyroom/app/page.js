@@ -1,6 +1,14 @@
 import Link from "next/link";
+import { getCurrentUser } from "@/lib/auth";
+import { redirect } from "next/navigation";
 
-export default function Home() {
+export default async function Home() {
+  // 로그인된 사용자는 대시보드로 리다이렉트
+  const user = await getCurrentUser();
+  if (user) {
+    redirect('/dashboard');
+  }
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-primary-100 to-white dark:from-gray-900 dark:to-gray-800">
       <main className="flex flex-col items-center justify-center px-4 py-16 text-center">

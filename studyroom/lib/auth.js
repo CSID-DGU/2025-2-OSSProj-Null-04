@@ -131,3 +131,57 @@ export async function canEditRoom(roomId, userId) {
     return false;
   }
 }
+
+/**
+ * 강의실 멤버인지 확인 (guest 포함)
+ * @param {string} roomId - 강의실 ID
+ * @param {string} userId - 사용자 ID
+ * @returns {Promise<boolean>}
+ */
+export async function isRoomMember(roomId, userId) {
+  try {
+    const membership = await checkRoomMembership(roomId, userId);
+    return membership !== null;
+  } catch (err) {
+    console.error('isRoomMember error:', err);
+    return false;
+  }
+}
+
+/**
+ * 게스트가 아닌지 확인 (member 이상)
+ * 파일 업로드, 퀴즈 생성, 일정 추가 등의 권한 확인
+ * @param {string} roomId - 강의실 ID
+ * @param {string} userId - 사용자 ID
+ * @returns {Promise<boolean>}
+ */
+export async function canModifyRoom(roomId, userId) {
+  try {
+    const membership = await checkRoomMembership(roomId, userId);
+    if (!membership) {
+      return false;
+    }
+
+    // guest가 아닌 경우 (owner, member)
+    return membership.Role !== 'guest';
+  } catch (err) {
+    console.error('canModifyRoom error:', err);
+    return false;
+  }
+}
+
+/**
+ * 사용자의 강의실 역할 가져오기
+ * @param {string} roomId - 강의실 ID
+ * @param {string} userId - 사용자 ID
+ * @returns {Promise<string|null>} 'owner', 'member', 'guest' 또는 null
+ */
+export async function getRoomRole(roomId, userId) {
+  try {
+    const membership = await checkRoomMembership(roomId, userId);
+    return membership ? membership.Role : null;
+  } catch (err) {
+    console.error('getRoomRole error:', err);
+    return null;
+  }
+}

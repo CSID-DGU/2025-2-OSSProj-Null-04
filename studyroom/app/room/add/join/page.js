@@ -2,10 +2,12 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 
 export default function JoinRoomPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [step, setStep] = useState(1); // 1: PIN 입력, 2: 비밀번호 입력
   const [enterPin, setEnterPin] = useState('');
   const [roomPassword, setRoomPassword] = useState('');
@@ -41,6 +43,8 @@ export default function JoinRoomPage() {
 
       // 참여 성공
       alert(data.message || '강의실에 참여했습니다!');
+      // 사이드바 강의실 목록 캐시 무효화
+      queryClient.invalidateQueries(['rooms']);
       router.push(`/room/${data.room.RoomID}/file`);
     } catch (err) {
       setError('강의실 찾기 중 오류가 발생했습니다');
@@ -70,6 +74,8 @@ export default function JoinRoomPage() {
 
       // 참여 성공
       alert(data.message || '강의실에 참여했습니다!');
+      // 사이드바 강의실 목록 캐시 무효화
+      queryClient.invalidateQueries(['rooms']);
       router.push(`/room/${data.room.RoomID}/file`);
     } catch (err) {
       setError('강의실 참여 중 오류가 발생했습니다');

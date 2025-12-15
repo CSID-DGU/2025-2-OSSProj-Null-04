@@ -2,13 +2,34 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 export default function CreateQuizPage() {
   const router = useRouter();
   const params = useParams();
   const roomId = params.roomId;
   const queryClient = useQueryClient();
+
+  // 사용자 권한 조회
+  const { data: userRole } = useQuery({
+    queryKey: ['userRole', roomId],
+    queryFn: async () => {
+      const res = await fetch(`/api/room/${roomId}/me`);
+      if (!res.ok) throw new Error('권한 조회 실패');
+      return res.json();
+    },
+    enabled: !!roomId,
+  });
+
+  const isGuest = userRole?.role === 'guest';
+
+  // 게스트는 퀴즈 생성 페이지 접근 불가
+  useEffect(() => {
+    if (userRole && isGuest) {
+      alert('게스트는 퀴즈를 생성할 수 없습니다.');
+      router.push(`/room/${roomId}/quiz`);
+    }
+  }, [userRole, isGuest, router, roomId]);
 
   // 기본 설정
   const [quizTitle, setQuizTitle] = useState('');

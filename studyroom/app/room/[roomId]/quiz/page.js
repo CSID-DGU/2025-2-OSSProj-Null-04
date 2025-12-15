@@ -12,6 +12,20 @@ export default function QuizPage() {
   const [deletingQuizId, setDeletingQuizId] = useState(null);
   const [downloadingQuizId, setDownloadingQuizId] = useState(null);
 
+  // 사용자 권한 조회
+  const { data: userRole, isLoading: isLoadingRole } = useQuery({
+    queryKey: ['userRole', roomId],
+    queryFn: async () => {
+      const res = await fetch(`/api/room/${roomId}/me`);
+      if (!res.ok) throw new Error('권한 조회 실패');
+      return res.json();
+    },
+    enabled: !!roomId,
+  });
+
+  const isGuest = userRole?.role === 'guest';
+  const isButtonDisabled = isLoadingRole || isGuest;
+
   // 퀴즈 목록 조회 (useQuery)
   const { data: quizzes = [], isLoading: loading, error } = useQuery({
     queryKey: ['quizzes', roomId],
@@ -108,7 +122,10 @@ export default function QuizPage() {
         </div>
         <button
           onClick={handleCreateQuiz}
-          className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+          disabled={isButtonDisabled}
+          className={`bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 ${
+            isButtonDisabled ? 'cursor-not-allowed' : ''
+          }`}
         >
           + 퀴즈 생성
         </button>
@@ -193,8 +210,10 @@ export default function QuizPage() {
                 {/* 삭제 - 위험 액션 (아이콘) */}
                 <button
                   onClick={() => handleDeleteQuiz(quiz.QuizID)}
-                  className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 transition-colors disabled:opacity-60"
-                  disabled={deleteQuizMutation.isPending && deletingQuizId === quiz.QuizID}
+                  className={`p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 transition-colors disabled:opacity-60 ${
+                    isButtonDisabled ? 'cursor-not-allowed' : ''
+                  }`}
+                  disabled={isButtonDisabled || (deleteQuizMutation.isPending && deletingQuizId === quiz.QuizID)}
                   title="퀴즈 삭제"
                   aria-label="퀴즈 삭제"
                 >

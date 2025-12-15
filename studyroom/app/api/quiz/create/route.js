@@ -35,6 +35,11 @@ export async function POST(request) {
       return NextResponse.json({ error: '강의실 접근 권한이 없습니다' }, { status: 403 });
     }
 
+    // 게스트는 퀴즈 생성 불가
+    if (membership.Role === 'guest') {
+      return NextResponse.json({ error: '게스트는 퀴즈를 생성할 수 없습니다' }, { status: 403 });
+    }
+
     // 퀴즈 생성
     const { data: quiz, error: quizError } = await supabase
       .from('Quiz')

@@ -1,7 +1,8 @@
-import { getCurrentUser } from '@/lib/auth';
+import { getCurrentUser, checkRoomMembership } from '@/lib/auth';
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { getRelevantChunks } from '@/lib/vectorize/semanticSearch';
+import { createClient } from '@/lib/supabase/server';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -97,12 +98,59 @@ export async function POST(request) {
       return NextResponse.json({ error: '로그인이 필요합니다' }, { status: 401 });
     }
 
-    const { fileIds, questionCounts, questionCount, difficulty, quizTitle } = await request.json();
+    const { fileIds, questionCounts, questionCount, difficulty, quizTitle, roomId } = await request.json();
     const desiredCounts = normalizeQuestionCounts(questionCounts, questionCount);
     const totalQuestions = desiredCounts.mcq + desiredCounts.short + desiredCounts.essay;
 
     if (totalQuestions <= 0) {
       return NextResponse.json({ error: '문제 수를 1개 이상 입력해주세요' }, { status: 400 });
+    }
+
+    // roomId를 통해 멤버십 확인 (roomId는 클라이언트에서 전달받거나 fileIds로 파악)
+    let targetRoomId = roomId;
+
+    // roomId가 없으면 fileIds를 통해 파악
+    if (!targetRoomId && fileIds && Array.isArray(fileIds) && fileIds.length > 0) {
+      const supabase = await createClient();
+      const { data: file } = await supabase
+        .from('File')
+        .select('RoomID')
+        .eq('FileID', fileIds[0])
+        .single();
+      targetRoomId = file?.RoomID;
+    }
+
+    if (!targetRoomId) {
+      return NextResponse.json({ error: '강의실 정보를 찾을 수 없습니다' }, { status: 400 });
+    }
+
+    // 멤버십 및 권한 확인
+    const membership = await checkRoomMembership(targetRoomId, user.id);
+    if (!membership) {
+      return NextResponse.json({ error: '강의실 접근 권한이 없습니다' }, { status: 403 });
+    }
+
+    // 게스트는 퀴즈 생성 불가
+    if (membership.Role === 'guest') {
+      return NextResponse.json({ error: '게스트는 퀴즈를 생성할 수 없습니다' }, { status: 403 });
+    }
+
+    // 모든 파일이 같은 강의실에 속하는지 확인
+    if (fileIds && Array.isArray(fileIds) && fileIds.length > 0) {
+      const supabase = await createClient();
+      const { data: files } = await supabase
+        .from('File')
+        .select('RoomID')
+        .in('FileID', fileIds);
+
+      if (!files || files.length !== fileIds.length) {
+        return NextResponse.json({ error: '일부 파일을 찾을 수 없습니다' }, { status: 400 });
+      }
+
+      const allSameRoom = files.every(f => f.RoomID === targetRoomId);
+      if (!allSameRoom) {
+        return NextResponse.json({ error: '모든 파일이 같은 강의실에 속해야 합니다' }, { status: 400 });
+      }
     }
 
     // 난이도별 프롬프트 조정

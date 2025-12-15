@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getCurrentUser } from '@/lib/auth';
+import { getCurrentUser, checkRoomMembership } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
 import { getSupabaseServiceClient } from '@/lib/supabase/service';
 import { vectorizeFileChunks } from '@/lib/vectorize/fileChunks';
@@ -23,6 +23,23 @@ export async function POST(request, context) {
       return NextResponse.json(
         { error: '유효하지 않은 요청입니다' },
         { status: 400 }
+      );
+    }
+
+    // 강의실 멤버십 및 권한 확인
+    const membership = await checkRoomMembership(roomId, user.id);
+    if (!membership) {
+      return NextResponse.json(
+        { error: '강의실 접근 권한이 없습니다' },
+        { status: 403 }
+      );
+    }
+
+    // 게스트는 업로드 불가
+    if (membership.Role === 'guest') {
+      return NextResponse.json(
+        { error: '게스트는 파일을 업로드할 수 없습니다' },
+        { status: 403 }
       );
     }
 
