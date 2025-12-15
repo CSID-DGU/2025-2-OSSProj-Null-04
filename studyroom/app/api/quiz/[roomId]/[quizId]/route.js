@@ -98,6 +98,14 @@ export async function DELETE(request, { params }) {
       );
     }
 
+    // 게스트는 삭제 불가
+    if (membership.Role === 'guest') {
+      return NextResponse.json(
+        { error: '게스트는 퀴즈를 삭제할 수 없습니다' },
+        { status: 403 }
+      );
+    }
+
     // 퀴즈 존재 확인
     const { data: quiz } = await supabase
       .from('Quiz')

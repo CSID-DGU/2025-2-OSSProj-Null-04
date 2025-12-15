@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient as createServiceClient } from '@supabase/supabase-js';
-import { getCurrentUser } from '@/lib/auth';
+import { getCurrentUser, checkRoomMembership } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
 
 const STORAGE_BUCKET =
@@ -40,6 +40,23 @@ export async function DELETE(request, { params }) {
       );
     }
 
+    // 1. 멤버십 확인
+    const membership = await checkRoomMembership(roomId, user.id);
+    if (!membership) {
+      return NextResponse.json(
+        { error: '강의실 접근 권한이 없습니다' },
+        { status: 403 }
+      );
+    }
+
+    // 2. 게스트는 삭제 불가
+    if (membership.Role === 'guest') {
+      return NextResponse.json(
+        { error: '게스트는 파일을 삭제할 수 없습니다' },
+        { status: 403 }
+      );
+    }
+
     const supabase = await createClient();
     const { data: fileRecord, error: fileError } = await supabase
       .from('File')
@@ -55,10 +72,13 @@ export async function DELETE(request, { params }) {
       );
     }
 
-    const isOwner = fileRecord.UserID === user.id;
-    if (!isOwner) {
+    // 3. 본인이 업로드한 파일만 삭제 가능 (owner는 모든 파일 삭제 가능)
+    const isFileOwner = fileRecord.UserID === user.id;
+    const isRoomOwner = membership.Role === 'owner';
+
+    if (!isFileOwner && !isRoomOwner) {
       return NextResponse.json(
-        { error: '파일 삭제 권한이 없습니다' },
+        { error: '자신이 업로드한 파일만 삭제할 수 있습니다' },
         { status: 403 }
       );
     }

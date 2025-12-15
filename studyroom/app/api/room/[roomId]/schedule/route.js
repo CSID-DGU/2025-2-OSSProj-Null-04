@@ -106,6 +106,14 @@ export async function POST(request, { params }) {
       );
     }
 
+    // 게스트는 일정 추가 불가
+    if (membership.Role === 'guest') {
+      return Response.json(
+        { error: '게스트는 일정을 추가할 수 없습니다' },
+        { status: 403 }
+      );
+    }
+
     // 6. 일정 추가
     const { data: schedule, error } = await supabase
       .from('Schedule')
@@ -179,6 +187,14 @@ export async function DELETE(request, { params }) {
     if (memberError || !membership) {
       return Response.json(
         { error: '해당 강의실에 접근 권한이 없습니다' },
+        { status: 403 }
+      );
+    }
+
+    // 게스트는 일정 삭제 불가
+    if (membership.Role === 'guest') {
+      return Response.json(
+        { error: '게스트는 일정을 삭제할 수 없습니다' },
         { status: 403 }
       );
     }

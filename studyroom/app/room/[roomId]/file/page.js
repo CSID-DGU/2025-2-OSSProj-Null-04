@@ -51,6 +51,20 @@ export default function FilePage() {
     }
   }, [uploadingFiles, roomId]);
 
+  // 사용자 권한 조회
+  const { data: userRole, isLoading: isLoadingRole } = useQuery({
+    queryKey: ['userRole', roomId],
+    queryFn: async () => {
+      const res = await fetch(`/api/room/${roomId}/me`);
+      if (!res.ok) throw new Error('권한 조회 실패');
+      return res.json();
+    },
+    enabled: !!roomId,
+  });
+
+  const isGuest = userRole?.role === 'guest';
+  const isButtonDisabled = isLoadingRole || isGuest;
+
   // 파일 목록 조회 (useQuery)
   const { data: files = [], isLoading: filesLoading, error: filesError } = useQuery({
     queryKey: ['files', roomId],
@@ -286,13 +300,16 @@ export default function FilePage() {
 
         {/* 드래그앤드롭 영역 */}
         <div
-          onDragEnter={handleDragEnter}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-          className={`relative border-2 border-dashed rounded-lg p-8 text-center transition-all duration-200 ${isDragging
-            ? 'border-primary-600 bg-primary-100 dark:bg-primary-900/30 scale-[1.02] shadow-lg'
-            : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500'
+          onDragEnter={!isButtonDisabled ? handleDragEnter : undefined}
+          onDragOver={!isButtonDisabled ? handleDragOver : undefined}
+          onDragLeave={!isButtonDisabled ? handleDragLeave : undefined}
+          onDrop={!isButtonDisabled ? handleDrop : undefined}
+          className={`relative border-2 border-dashed rounded-lg p-8 text-center transition-all duration-200 ${
+            isButtonDisabled
+              ? 'border-gray-200 dark:border-gray-700 opacity-50 cursor-not-allowed'
+              : isDragging
+              ? 'border-primary-600 bg-primary-100 dark:bg-primary-900/30 scale-[1.02] shadow-lg'
+              : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500'
             }`}
         >
           {isDragging && (
@@ -321,15 +338,20 @@ export default function FilePage() {
 
             {/* 텍스트 */}
             <div>
-              <p className={`text-base font-medium transition-colors ${isDragging
-                ? 'text-primary-700 dark:text-primary-400'
-                : 'text-gray-900 dark:text-white'
+              <p className={`text-base font-medium transition-colors ${
+                isButtonDisabled
+                  ? 'text-gray-400 dark:text-gray-600'
+                  : isDragging
+                  ? 'text-primary-700 dark:text-primary-400'
+                  : 'text-gray-900 dark:text-white'
                 }`}>
-                {isDragging ? '📁 파일을 여기에 놓으세요!' : '파일을 드래그하여 업로드'}
+                {isLoadingRole ? '권한 확인 중...' : isGuest ? '게스트는 파일을 업로드할 수 없습니다' : isDragging ? '📁 파일을 여기에 놓으세요!' : '파일을 드래그하여 업로드'}
               </p>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                또는 아래 버튼을 클릭하세요
-              </p>
+              {!isButtonDisabled && (
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  또는 아래 버튼을 클릭하세요
+                </p>
+              )}
             </div>
 
             {/* 선택된 파일 표시 */}
@@ -364,14 +386,17 @@ export default function FilePage() {
                 onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
                 className="hidden"
                 id="file-input"
+                disabled={isButtonDisabled}
               />
-              <div className="cursor-pointer px-6 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-lg text-sm font-medium text-center transition-colors">
+              <div className={`px-6 py-2 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-lg text-sm font-medium text-center transition-colors ${
+                isButtonDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600'
+              }`}>
                 파일 선택
               </div>
             </label>
             <button
               type="submit"
-              disabled={!selectedFile}
+              disabled={!selectedFile || isButtonDisabled}
               className="flex-1 px-6 py-2 bg-primary-600 text-white hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed rounded-lg text-sm font-medium transition-colors"
             >
               업로드
@@ -480,8 +505,10 @@ export default function FilePage() {
                   <button
                     type="button"
                     onClick={() => deleteMutation.mutate(file.FileID)}
-                    disabled={deleteMutation.isPending}
-                    className="text-sm font-medium text-red-600 hover:text-red-700 disabled:opacity-50"
+                    disabled={isButtonDisabled || deleteMutation.isPending}
+                    className={`text-sm font-medium text-red-600 hover:text-red-700 disabled:opacity-50 ${
+                      isButtonDisabled ? 'cursor-not-allowed' : ''
+                    }`}
                   >
                     삭제
                   </button>

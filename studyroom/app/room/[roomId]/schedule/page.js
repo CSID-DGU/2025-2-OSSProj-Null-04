@@ -10,6 +10,20 @@ export default function SchedulePage() {
   const roomId = params.roomId;
   const queryClient = useQueryClient();
 
+  // 사용자 권한 조회
+  const { data: userRole, isLoading: isLoadingRole } = useQuery({
+    queryKey: ['userRole', roomId],
+    queryFn: async () => {
+      const res = await fetch(`/api/room/${roomId}/me`);
+      if (!res.ok) throw new Error('권한 조회 실패');
+      return res.json();
+    },
+    enabled: !!roomId,
+  });
+
+  const isGuest = userRole?.role === 'guest';
+  const isButtonDisabled = isLoadingRole || isGuest;
+
   // 일정 추가 폼 상태
   const [isAddingSchedule, setIsAddingSchedule] = useState(false);
   const [eventTitle, setEventTitle] = useState('');
@@ -150,7 +164,10 @@ export default function SchedulePage() {
         </div>
         <button
           onClick={() => setIsAddingSchedule(!isAddingSchedule)}
-          className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm font-medium"
+          disabled={isButtonDisabled}
+          className={`px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm font-medium disabled:opacity-50 ${
+            isButtonDisabled ? 'cursor-not-allowed' : ''
+          }`}
         >
           {isAddingSchedule ? '취소' : '+ 일정 추가'}
         </button>
@@ -200,7 +217,8 @@ export default function SchedulePage() {
             <div className="flex justify-end">
               <button
                 type="submit"
-                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm font-medium"
+                disabled={isButtonDisabled || addScheduleMutation.isPending}
+                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm font-medium disabled:opacity-50"
               >
                 추가
               </button>
@@ -281,8 +299,10 @@ export default function SchedulePage() {
                   </span>
                   <button
                     onClick={() => handleDeleteSchedule(schedule.EventID)}
-                    className="px-4 py-2 rounded-lg bg-red-100 hover:bg-red-200 text-red-700 transition-colors text-sm font-medium disabled:opacity-60"
-                    disabled={deleteScheduleMutation.isPending}
+                    className={`px-4 py-2 rounded-lg bg-red-100 hover:bg-red-200 text-red-700 transition-colors text-sm font-medium disabled:opacity-60 ${
+                      isButtonDisabled ? 'cursor-not-allowed' : ''
+                    }`}
+                    disabled={isButtonDisabled || deleteScheduleMutation.isPending}
                   >
                     삭제
                   </button>
